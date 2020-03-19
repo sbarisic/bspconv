@@ -6,9 +6,7 @@ using System.Threading.Tasks;
 using System.IO;
 using System.IO.Compression;
 using System.Collections.ObjectModel;
-using Libraria;
-using Libraria.Serialization;
-using Libraria.Serialization.Formats;
+using bspconv.Quake;
 
 namespace bspconv {
 	class Program {
