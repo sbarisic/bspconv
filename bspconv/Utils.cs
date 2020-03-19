@@ -294,7 +294,9 @@ namespace bspconv {
 
 
 		public static void Write(this BinaryWriter BW, string Str, Encoding Enc, bool NullTerminated = false) {
-			BW.Write(Enc.GetBytes(Str));
+			byte[] Bytes = Enc.GetBytes(Str);
+			BW.Write(Bytes);
+
 			if (NullTerminated)
 				BW.Write((byte)0);
 		}
