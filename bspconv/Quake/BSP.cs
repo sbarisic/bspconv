@@ -33,12 +33,14 @@ namespace bspconv.Quake {
 		}
 	}
 
+	// Entry
 	[StructLayout(LayoutKind.Sequential, Pack = 1)]
 	public struct BSP_DirEntry {
 		public int Offset;
 		public int Length;
 	}
 
+	// Lumps
 	[StructLayout(LayoutKind.Sequential, Pack = 1)]
 	public struct BSP_Entities {
 		[StringEncoding(EncodingType.ASCII)]
@@ -46,7 +48,7 @@ namespace bspconv.Quake {
 	}
 
 	[StructLayout(LayoutKind.Sequential, Pack = 1, Size = 64 + 4 + 4)]
-	public unsafe struct BSP_Texture {
+	public unsafe struct BSP_Shader {
 		[StringEncoding(EncodingType.ASCII, 64)]
 		public string Name;
 
@@ -127,9 +129,9 @@ namespace bspconv.Quake {
 	}
 
 	[StructLayout(LayoutKind.Sequential, Pack = 1, Size = 64 + 4 + 4)]
-	public struct BSP_Effect {
-		[StringEncoding(EncodingType.ASCII, 64)]
-		public string Name;
+	public unsafe struct BSP_Effect {
+		public fixed byte Name[64];
+
 		public int Brush;
 		public int Unknown;
 	}
@@ -271,7 +273,7 @@ namespace bspconv.Quake {
 
 				int EntriesPosition = (int)S.Position;
 				BW.WriteStructArray(Entries);
-				SerializeWatermark(BW);
+				//SerializeWatermark(BW);
 
 				//int OrderIndex = 0;
 				//FieldInfo[] Fields = GetType().GetFields().Where((I) => I.GetCustomAttributes<BSPLumpAttribute>().Count() > 0).OrderBy((I) => LumpOrder[OrderIndex++]).ToArray();
@@ -296,7 +298,7 @@ namespace bspconv.Quake {
 
 							Entries[Attribs[j].Index].Offset = Offset;
 							Entries[Attribs[j].Index].Length = (int)S.Position - Offset;
-							SerializeWatermark(BW);
+							//SerializeWatermark(BW);
 							break;
 						}
 						//Fields[i].SetValue(this, T.IsArray ? BR.ReadArray(T.GetElementType(), Offset, Length) : BR.Read(T, Offset, Length));
@@ -304,7 +306,7 @@ namespace bspconv.Quake {
 				}
 
 				SerializeLumpVisdata(BW, 16);
-				SerializeWatermark(BW);
+				//SerializeWatermark(BW);
 
 				S.Seek(EntriesPosition, SeekOrigin.Begin);
 				BW.WriteStructArray(Entries);
@@ -330,7 +332,7 @@ namespace bspconv.Quake {
 
 		[BSPLump("IBSP", 46, 1)]
 		[BSPLump("IBSP", 47, 1)]
-		public BSP_Texture[] LumpTextures;
+		public BSP_Shader[] LumpShaders;
 
 		[BSPLump("IBSP", 46, 2)]
 		[BSPLump("IBSP", 47, 2)]

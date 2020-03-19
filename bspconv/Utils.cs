@@ -171,8 +171,11 @@ namespace bspconv {
 
 		public static object Deserialize(byte[] Bytes, FieldInfo Field, ref int Idx, int Len = -1) {
 			StringEncodingAttribute StringEncoding = Field.GetCustomAttribute<StringEncodingAttribute>();
-			if (StringEncoding != null)
+
+			if (StringEncoding != null) {
 				Len = StringEncoding.Length;
+				TextEncoding = StringEncoding.Encoding;
+			}
 
 			return Deserialize(Bytes, Field.FieldType, ref Idx, Len);
 		}

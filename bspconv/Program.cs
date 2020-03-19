@@ -59,36 +59,40 @@ namespace bspconv {
 				} else if (Extension == ".pk3") {
 					OpenZip(FileNameExt, true, (In) => {
 						OpenZip(OutName, false, (Out) => {
-							int EntryNum = 0;
-							int Count = In.Entries.Count;
-
-							foreach (var Entry in In.Entries) {
-								Console.Title = string.Format("{0:0}%", ((float)EntryNum / Count) * 100);
-								EntryNum++;
-
-								if (Entry.Length == 0)
-									continue;
-
-								string EntryExt = Path.GetExtension(Entry.FullName);
-								ZipArchiveEntry OutEntry = Out.CreateEntry(Entry.FullName, CompressionLevel.Optimal);
-
-								OpenEntry(Entry, true, (InStream) => {
-									if (EntryExt == ".bsp") {
-										Console.WriteLine("Converting {0}", Entry.FullName);
-
-										BSP Map = BSP.FromStream(InStream);
-										Map.Version = TargetVer;
-
-										OpenEntry(OutEntry, false, (OutStream) => Map.Serialize(OutStream));
-									} else
-										OpenEntry(OutEntry, false, (OutStream) => InStream.CopyTo(OutStream));
-								});
-							}
+							ConvertFromPK3(TargetVer, In, Out);
 						});
 					});
 				} else {
 					Console.WriteLine("Skipping {0}, unknown extension type {1}", FileNameExt, Extension);
 				}
+			}
+		}
+
+		static void ConvertFromPK3(int TargetVer, ZipArchive In, ZipArchive Out) {
+			int EntryNum = 0;
+			int Count = In.Entries.Count;
+
+			foreach (var Entry in In.Entries) {
+				Console.Title = string.Format("{0:0}%", ((float)EntryNum / Count) * 100);
+				EntryNum++;
+
+				if (Entry.Length == 0)
+					continue;
+
+				string EntryExt = Path.GetExtension(Entry.FullName);
+				ZipArchiveEntry OutEntry = Out.CreateEntry(Entry.FullName, CompressionLevel.Optimal);
+
+				OpenEntry(Entry, true, (InStream) => {
+					if (EntryExt == ".bsp") {
+						Console.WriteLine("Converting {0}", Entry.FullName);
+
+						BSP Map = BSP.FromStream(InStream);
+						Map.Version = TargetVer;
+
+						OpenEntry(OutEntry, false, (OutStream) => Map.Serialize(OutStream));
+					} else
+						OpenEntry(OutEntry, false, (OutStream) => InStream.CopyTo(OutStream));
+				});
 			}
 		}
 
