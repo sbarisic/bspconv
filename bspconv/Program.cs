@@ -7,14 +7,12 @@ using System.IO;
 using System.IO.Compression;
 using System.Collections.ObjectModel;
 using bspconv.Quake;
+using System.Runtime.InteropServices;
 
 namespace bspconv {
 	class Program {
 		static void Main(string[] args) {
-			Console.Title = "Test3";
-
-			/*if (args.Length == 0)
-				args = new string[] { "maps_q3.pk3" };*/
+			Console.Title = "bspconv";
 
 			int TargetVer = 0;
 			int StartIdx = 0;
@@ -73,7 +71,7 @@ namespace bspconv {
 			int Count = In.Entries.Count;
 
 			foreach (var Entry in In.Entries) {
-				Console.Title = string.Format("{0:0}%", ((float)EntryNum / Count) * 100);
+				Console.Title = string.Format("bspconv {0:0}%", ((float)EntryNum / Count) * 100);
 				EntryNum++;
 
 				if (Entry.Length == 0)

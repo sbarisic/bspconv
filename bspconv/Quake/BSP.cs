@@ -142,25 +142,25 @@ namespace bspconv.Quake {
 
 	[StructLayout(LayoutKind.Sequential, Pack = 1)]
 	public struct BSP_Face {
-		public int Texture;
-		public int Effect;
-		public int Type;
-		public int Vertex;
-		public int N_Vertexes;
-		public int Meshvert;
-		public int N_Meshverts;
-		public int LM_Index;
+		public int Texture;         // Index into texture array
+		public int Effect;          // Index for the effects, -1 for N/A
+		public int Type;            // 1 - Polygon, 2 - Patch, 3 - Mesh, 4 - Billboard
+		public int Vertex;          // Index into face's first vertex
+		public int NumVertices;
+		public int MeshVert;        // Index into first meshvertex
+		public int NumMeshVerts;
+		public int LightmapIndex;       // Texture index for the lightmap
 		public Vector2<int> LM_Start;
 		public Vector2<int> LM_Size;
-		public Vector3<float> LM_Origin;
-		public Vector3<Vector2<float>> LM_Vecs;
+		public Vector3<float> LM_Origin;            // 3D origin of lightmap
+		public Vector3<Vector2<float>> LM_Vecs;     // 3D space for S and T unit vectors
 		public Vector3<float> Normal;
-		public Vector2<int> Size;
+		public Vector2<int> Size;   // Bezier patch dimensions
 	}
 
 	[StructLayout(LayoutKind.Sequential, Pack = 1)]
 	public unsafe struct BSP_Lightmap {
-		public fixed byte Map[128 * 128 * 3];
+		public fixed byte Map[128 * 128 * 3]; // RGB data in a 128x128 image
 	}
 
 	[StructLayout(LayoutKind.Sequential, Pack = 1)]
@@ -178,8 +178,13 @@ namespace bspconv.Quake {
 	}
 
 	[StructLayout(LayoutKind.Sequential, Pack = 1)]
-	public unsafe struct BSP_Advertisements {
-		public fixed byte Data[256];
+	public unsafe struct BSP_Advertisement {
+		//public fixed byte Data[256];
+
+		public int CellID;
+		public Vector3<float> Normal;           // Normal vector of advertisement plane
+		public Vector4<Vector3<float>> Rect;    // Advertisement plane boundaries
+		public fixed byte Model[64];            // Advertisement display model
 	}
 
 	[StructLayout(LayoutKind.Sequential, Pack = 1)]
@@ -259,7 +264,7 @@ namespace bspconv.Quake {
 		public BSP_Visdata LumpVisData;
 
 		[BSPLump("IBSP", 47, 17)]
-		public BSP_Advertisements LumpAdvertisements;
+		public BSP_Advertisement[] LumpAdvertisements;
 
 
 
