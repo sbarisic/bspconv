@@ -48,7 +48,9 @@
   <ItemGroup>
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Quake\Attributes.cs" />
     <Compile Include="Quake\BSP.cs" />
+    <Compile Include="Quake\Lumps.cs" />
     <Compile Include="Utils.cs" />
     <Compile Include="Vectors.cs" />
   </ItemGroup>

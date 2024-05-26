@@ -8,257 +8,83 @@ using System.Reflection;
 using System.Linq;
 
 namespace bspconv.Quake {
-	[AttributeUsage(AttributeTargets.Field, Inherited = false, AllowMultiple = true)]
-	sealed class BSPLumpAttribute : Attribute {
-		public string Magic;
-		public int Version;
-		public int Index;
-
-		public BSPLumpAttribute(string Magic, int Version, int Index) {
-			this.Magic = Magic;
-			this.Version = Version;
-			this.Index = Index;
-		}
-	}
-
-	[AttributeUsage(AttributeTargets.Field, Inherited = false, AllowMultiple = false)]
-	sealed class BSPSkipAutoDeserializeAttribute : Attribute {
-		public BSPSkipAutoDeserializeAttribute() {
-		}
-	}
-
-	[AttributeUsage(AttributeTargets.Field, Inherited = false, AllowMultiple = false)]
-	sealed class BSPSkipAutoSerializeAttribute : Attribute {
-		public BSPSkipAutoSerializeAttribute() {
-		}
-	}
-
-	// Entry
-	[StructLayout(LayoutKind.Sequential, Pack = 1)]
-	public struct BSP_DirEntry {
-		public int Offset;
-		public int Length;
-
-		public override string ToString() {
-			return string.Format("0x{0:X8} - {1}", Offset, Length);
-		}
-	}
-
-	// Lumps
-	[StructLayout(LayoutKind.Sequential, Pack = 1)]
-	public struct BSP_Entities {
-		[StringEncoding(EncodingType.ASCII)]
-		public string Ents;
-	}
-
-	[StructLayout(LayoutKind.Sequential, Pack = 1, Size = 64 + 4 + 4)]
-	public unsafe struct BSP_Texture {
-		[StringEncoding(EncodingType.ASCII, 64)]
-		public string Name;
-
-		public int Flags;
-		public int Contents;
-	}
-
-	[StructLayout(LayoutKind.Sequential, Pack = 1)]
-	public unsafe struct BSP_Plane {
-		public Vector3<float> Normal;
-		public float Dist;
-	}
-
-	[StructLayout(LayoutKind.Sequential, Pack = 1)]
-	public struct BSP_Node {
-		public int Plane;
-		public Vector2<int> Children;
-		public Vector3<int> Mins;
-		public Vector3<int> Maxs;
-	}
-
-	[StructLayout(LayoutKind.Sequential, Pack = 1)]
-	public struct BSP_Leaf {
-		public int Cluster;
-		public int Area;
-		public Vector3<int> Mins;
-		public Vector3<int> Maxs;
-		public int Leafface;
-		public int N_Leaffaces;
-		public int Leafbrush;
-		public int N_Leafbrushes;
-	}
-
-	[StructLayout(LayoutKind.Sequential, Pack = 1)]
-	public struct BSP_Leafface {
-		public int Face;
-	}
-
-	[StructLayout(LayoutKind.Sequential, Pack = 1)]
-	public struct BSP_Leafbrush {
-		public int Brush;
-	}
-
-	[StructLayout(LayoutKind.Sequential, Pack = 1)]
-	public struct BSP_Model {
-		public Vector3<float> Mins;
-		public Vector3<float> Maxs;
-		public int Face;
-		public int N_Faces;
-		public int Brush;
-		public int N_Brushes;
-	}
-
-	[StructLayout(LayoutKind.Sequential, Pack = 1)]
-	public struct BSP_Brush {
-		public int Brushside;
-		public int N_Brushsides;
-		public int Texture;
-	}
-
-	[StructLayout(LayoutKind.Sequential, Pack = 1)]
-	public struct BSP_Brushside {
-		public int Plane;
-		public int Texture;
-	}
-
-	[StructLayout(LayoutKind.Sequential, Pack = 1)]
-	public struct BSP_Vertex {
-		public Vector3<float> Position;
-		public Vector2<Vector2<float>> TexCoord;
-		public Vector3<float> Normal;
-		public Vector4<byte> Color;
-	}
-
-	[StructLayout(LayoutKind.Sequential, Pack = 1)]
-	public struct BSP_Meshvert {
-		public int Offset;
-	}
-
-	[StructLayout(LayoutKind.Sequential, Pack = 1, Size = 64 + 4 + 4)]
-	public unsafe struct BSP_Shader {
-		public fixed byte Name[64];
-
-		public int Brush;
-		public int Unknown;
-	}
-
-	[StructLayout(LayoutKind.Sequential, Pack = 1)]
-	public struct BSP_Face {
-		public int Texture;
-		public int Effect;
-		public int Type;
-		public int Vertex;
-		public int N_Vertexes;
-		public int Meshvert;
-		public int N_Meshverts;
-		public int LM_Index;
-		public Vector2<int> LM_Start;
-		public Vector2<int> LM_Size;
-		public Vector3<float> LM_Origin;
-		public Vector3<Vector2<float>> LM_Vecs;
-		public Vector3<float> Normal;
-		public Vector2<int> Size;
-	}
-
-	[StructLayout(LayoutKind.Sequential, Pack = 1)]
-	public unsafe struct BSP_Lightmap {
-		public fixed byte Map[128 * 128 * 3];
-	}
-
-	[StructLayout(LayoutKind.Sequential, Pack = 1)]
-	public struct BSP_Lightvol {
-		public Vector3<byte> Ambient;
-		public Vector3<byte> Directional;
-		public Vector2<byte> Dir;
-	}
-
-	[StructLayout(LayoutKind.Sequential, Pack = 1)]
-	public unsafe struct BSP_Visdata {
-		public int N_Vecs;
-		public int SZ_Vecs;
-		public byte[] Vecs;
-	}
-
-	[StructLayout(LayoutKind.Sequential, Pack = 1)]
-	public unsafe struct BSP_Advertisements {
-		public fixed byte Data[256];
-	}
-
 	[StructLayout(LayoutKind.Sequential, Pack = 1)]
 	public unsafe class BSP {
 		public string Magic;
-		public int Version;
+		public QuakeVersion Version;
 		public BSP_DirEntry[] Entries;
 
-		[BSPLump("IBSP", 46, 0)]
-		[BSPLump("IBSP", 47, 0)]
+		[BSPLump("IBSP", QuakeVersion.Quake3, 0)]
+		[BSPLump("IBSP", QuakeVersion.QuakeLive, 0)]
 		public BSP_Entities LumpEntities;
 
-		[BSPLump("IBSP", 46, 1)]
-		[BSPLump("IBSP", 47, 1)]
+		[BSPLump("IBSP", QuakeVersion.Quake3, 1)]
+		[BSPLump("IBSP", QuakeVersion.QuakeLive, 1)]
 		public BSP_Texture[] LumpTextures;
 
-		[BSPLump("IBSP", 46, 2)]
-		[BSPLump("IBSP", 47, 2)]
+		[BSPLump("IBSP", QuakeVersion.Quake3, 2)]
+		[BSPLump("IBSP", QuakeVersion.QuakeLive, 2)]
 		public BSP_Plane[] LumpPlanes;
 
-		[BSPLump("IBSP", 46, 3)]
-		[BSPLump("IBSP", 47, 3)]
+		[BSPLump("IBSP", QuakeVersion.Quake3, 3)]
+		[BSPLump("IBSP", QuakeVersion.QuakeLive, 3)]
 		public BSP_Node[] LumpNodes;
 
-		[BSPLump("IBSP", 46, 4)]
-		[BSPLump("IBSP", 47, 4)]
+		[BSPLump("IBSP", QuakeVersion.Quake3, 4)]
+		[BSPLump("IBSP", QuakeVersion.QuakeLive, 4)]
 		public BSP_Leaf[] LumpLeafs;
 
-		[BSPLump("IBSP", 46, 5)]
-		[BSPLump("IBSP", 47, 5)]
+		[BSPLump("IBSP", QuakeVersion.Quake3, 5)]
+		[BSPLump("IBSP", QuakeVersion.QuakeLive, 5)]
 		public BSP_Leafface[] LumpLeafFaces;
 
-		[BSPLump("IBSP", 46, 6)]
-		[BSPLump("IBSP", 47, 6)]
+		[BSPLump("IBSP", QuakeVersion.Quake3, 6)]
+		[BSPLump("IBSP", QuakeVersion.QuakeLive, 6)]
 		public BSP_Leafbrush[] LumpLeafBrushes;
 
-		[BSPLump("IBSP", 46, 7)]
-		[BSPLump("IBSP", 47, 7)]
+		[BSPLump("IBSP", QuakeVersion.Quake3, 7)]
+		[BSPLump("IBSP", QuakeVersion.QuakeLive, 7)]
 		public BSP_Model[] LumpModels;
 
-		[BSPLump("IBSP", 46, 8)]
-		[BSPLump("IBSP", 47, 8)]
+		[BSPLump("IBSP", QuakeVersion.Quake3, 8)]
+		[BSPLump("IBSP", QuakeVersion.QuakeLive, 8)]
 		public BSP_Brush[] LumpBrushes;
 
-		[BSPLump("IBSP", 46, 9)]
-		[BSPLump("IBSP", 47, 9)]
+		[BSPLump("IBSP", QuakeVersion.Quake3, 9)]
+		[BSPLump("IBSP", QuakeVersion.QuakeLive, 9)]
 		public BSP_Brushside[] LumpBrushSides;
 
-		[BSPLump("IBSP", 46, 10)]
-		[BSPLump("IBSP", 47, 10)]
+		[BSPLump("IBSP", QuakeVersion.Quake3, 10)]
+		[BSPLump("IBSP", QuakeVersion.QuakeLive, 10)]
 		public BSP_Vertex[] LumpVertices;
 
-		[BSPLump("IBSP", 46, 11)]
-		[BSPLump("IBSP", 47, 11)]
+		[BSPLump("IBSP", QuakeVersion.Quake3, 11)]
+		[BSPLump("IBSP", QuakeVersion.QuakeLive, 11)]
 		public BSP_Meshvert[] LumpMeshVerts;
 
-		[BSPLump("IBSP", 46, 12)]
-		[BSPLump("IBSP", 47, 12)]
+		[BSPLump("IBSP", QuakeVersion.Quake3, 12)]
+		[BSPLump("IBSP", QuakeVersion.QuakeLive, 12)]
 		public BSP_Shader[] LumpShaders;
 
-		[BSPLump("IBSP", 46, 13)]
-		[BSPLump("IBSP", 47, 13)]
+		[BSPLump("IBSP", QuakeVersion.Quake3, 13)]
+		[BSPLump("IBSP", QuakeVersion.QuakeLive, 13)]
 		public BSP_Face[] LumpFaces;
 
-		[BSPLump("IBSP", 46, 14)]
-		[BSPLump("IBSP", 47, 14)]
+		[BSPLump("IBSP", QuakeVersion.Quake3, 14)]
+		[BSPLump("IBSP", QuakeVersion.QuakeLive, 14)]
 		public BSP_Lightmap[] LumpLightmaps;
 
-		[BSPLump("IBSP", 46, 15)]
-		[BSPLump("IBSP", 47, 15)]
+		[BSPLump("IBSP", QuakeVersion.Quake3, 15)]
+		[BSPLump("IBSP", QuakeVersion.QuakeLive, 15)]
 		public BSP_Lightvol[] LumpLightVolumes;
 
 		[BSPSkipAutoDeserialize]
 		[BSPSkipAutoSerialize]
-		[BSPLump("IBSP", 46, 16)]
-		[BSPLump("IBSP", 47, 16)]
+		[BSPLump("IBSP", QuakeVersion.Quake3, 16)]
+		[BSPLump("IBSP", QuakeVersion.QuakeLive, 16)]
 		public BSP_Visdata LumpVisData;
 
-		[BSPLump("IBSP", 47, 17)]
+		[BSPLump("IBSP", QuakeVersion.QuakeLive, 17)]
 		public BSP_Advertisements LumpAdvertisements;
 
 
@@ -285,12 +111,17 @@ namespace bspconv.Quake {
 		}
 
 		void DeserializeLumpVisdata(BinaryReader BR, int Idx) {
-			BR.BaseStream.Seek(Entries[Idx].Offset, SeekOrigin.Begin);
-			int Len = Entries[Idx].Length;
+			int Len = 0;
+
+			if (Idx != -1) {
+				BR.BaseStream.Seek(Entries[Idx].Offset, SeekOrigin.Begin);
+				Len = Entries[Idx].Length;
+			}
 
 			if (Len == 0) {
 				LumpVisData.N_Vecs = 0;
 				LumpVisData.SZ_Vecs = 0;
+				LumpVisData.Vecs = new byte[] { };
 				return;
 			}
 
@@ -315,21 +146,25 @@ namespace bspconv.Quake {
 		}
 
 		int GetVisdataIndex() {
-			int VisdataIndex = GetType().GetField(nameof(LumpVisData)).GetCustomAttributes<BSPLumpAttribute>().Where(L => L.Version == Version).FirstOrDefault()?.Index ?? -1;
+			BSPLumpAttribute[] LumpAttribs =
+							GetType().GetField(nameof(LumpVisData)).GetCustomAttributes<BSPLumpAttribute>().ToArray();
 
-			if (VisdataIndex == -1)
-				throw new NotImplementedException();
+			int VisdataIndex = LumpAttribs.Where(L => L.Version == Version).FirstOrDefault()?.Index ?? -1;
+
+			//if (VisdataIndex == -1)
+			//	throw new NotImplementedException();
 
 			return VisdataIndex;
 		}
 
 		void Deserialize(BinaryReader BR) {
 			Magic = BR.ReadString(Encoding.ASCII, 4);
-			Version = BR.Read<int>();
+			QuakeVersion QVersion = (QuakeVersion)BR.Read<int>();
+			int Version = (int)QVersion;
 
 			bool Supported = false;
-			Supported |= Magic == "IBSP" && Version == 46;
-			Supported |= Magic == "IBSP" && Version == 47;
+			Supported |= Magic == "IBSP" && QVersion == QuakeVersion.Quake3;
+			Supported |= Magic == "IBSP" && QVersion == QuakeVersion.QuakeLive;
 
 			if (!Supported)
 				throw new Exception("Unknown format " + Magic + " " + Version);
@@ -351,7 +186,7 @@ namespace bspconv.Quake {
 				BSPLumpAttribute[] Attribs = Fields[i].GetCustomAttributes<BSPLumpAttribute>().ToArray();
 
 				for (int j = 0; j < Attribs.Length; j++) {
-					if (Attribs[j].Magic != Magic || Attribs[j].Version != Version)
+					if (Attribs[j].Magic != Magic || Attribs[j].Version != (QuakeVersion)Version)
 						continue;
 
 					int Offset = Entries[Attribs[j].Index].Offset;
@@ -368,9 +203,11 @@ namespace bspconv.Quake {
 		}
 
 		public void Serialize(Stream S) {
+			int Version = (int)this.Version;
+
 			using (BinaryWriter BW = new BinaryWriter(S, Encoding.UTF8, true)) {
 				BW.Write(Magic, Encoding.ASCII);
-				BW.Write(Version);
+				BW.Write((int)Version);
 
 				int LumpCountNum = LumpCount[Magic + Version];
 				if (Entries.Length != LumpCountNum)
@@ -396,7 +233,7 @@ namespace bspconv.Quake {
 					for (int j = 0; j < Attribs.Length; j++) {
 						Type T = Fields[i].FieldType;
 
-						if (Attribs[j].Magic == Magic && Attribs[j].Version == Version) {
+						if (Attribs[j].Magic == Magic && Attribs[j].Version == (QuakeVersion)Version) {
 							int Offset = (int)S.Position;
 
 							if (T.IsArray)

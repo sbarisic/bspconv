@@ -13,10 +13,12 @@ namespace bspconv {
 		static void Main(string[] args) {
 			Console.Title = "Test3";
 
+			//args = new string[] { "46", "E:\\Games\\Quake3\\QL_Content\\ql_dust2.pk3" };
+
 			/*if (args.Length == 0)
 				args = new string[] { "maps_q3.pk3" };*/
 
-			int TargetVer = 0;
+			QuakeVersion TargetVer = 0;
 			int StartIdx = 0;
 
 			if (args.Length == 0) {
@@ -26,15 +28,16 @@ namespace bspconv {
 				return;
 			}
 
-			if (args.Length > 1 && int.TryParse(args[0], out TargetVer))
+			if (args.Length > 1 && int.TryParse(args[0], out int TargetVerNum)) {
+				TargetVer = (QuakeVersion)TargetVerNum;
 				StartIdx = 1;
-			else {
-				TargetVer = 47;
+			} else {
+				TargetVer = QuakeVersion.QuakeLive;
 				StartIdx = 0;
 			}
 
 
-			Console.WriteLine("Converting to IBSP {0}", TargetVer);
+			Console.WriteLine("Converting to IBSP {0} - {1}", (int)TargetVer, TargetVer);
 
 
 			for (int i = StartIdx; i < args.Length; i++) {
@@ -47,7 +50,7 @@ namespace bspconv {
 
 				string FileName = Path.GetFileNameWithoutExtension(FileNameExt);
 				string Extension = Path.GetExtension(FileNameExt);
-				string OutName = FileName + "_IBSP" + TargetVer + Extension;
+				string OutName = FileName + "_IBSP" + ((int)TargetVer) + Extension;
 
 				if (Extension == ".bsp") {
 					Console.WriteLine("Converting {0}", FileNameExt);
@@ -68,7 +71,7 @@ namespace bspconv {
 			}
 		}
 
-		static void ConvertFromPK3(int TargetVer, ZipArchive In, ZipArchive Out) {
+		static void ConvertFromPK3(QuakeVersion TargetVer, ZipArchive In, ZipArchive Out) {
 			int EntryNum = 0;
 			int Count = In.Entries.Count;
 
@@ -90,8 +93,10 @@ namespace bspconv {
 						Map.Version = TargetVer;
 
 						OpenEntry(OutEntry, false, (OutStream) => Map.Serialize(OutStream));
-					} else
+					} else {
+						Console.WriteLine("Copying {0}", Entry.FullName);
 						OpenEntry(OutEntry, false, (OutStream) => InStream.CopyTo(OutStream));
+					}
 				});
 			}
 		}
