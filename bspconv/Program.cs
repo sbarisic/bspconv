@@ -7,13 +7,14 @@ using System.IO;
 using System.IO.Compression;
 using System.Collections.ObjectModel;
 using bspconv.Quake;
+using System.Runtime.InteropServices;
 
 namespace bspconv {
 	class Program {
 		static void Main(string[] args) {
 			Console.Title = "Test3";
 
-			//args = new string[] { "46", "E:\\Games\\Quake3\\QL_Content\\ql_dust2.pk3" };
+			//args = new string[] { "46", "E:\\SteamLibrary\\steamapps\\common\\Quake Live\\baseq3\\pak00.pk3" };
 
 			/*if (args.Length == 0)
 				args = new string[] { "maps_q3.pk3" };*/
