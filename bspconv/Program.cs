@@ -9,13 +9,15 @@ using System.Collections.ObjectModel;
 using bspconv.Quake;
 using System.Runtime.InteropServices;
 using System.Web.UI;
+using bspconv.HL;
 
 namespace bspconv {
 	class Program {
 		static void Main(string[] args) {
-			Console.Title = "Test3";
+			Console.Title = "bspconv";
 
 			//args = new string[] { "46", "E:\\SteamLibrary\\steamapps\\common\\Quake Live\\baseq3\\pak00.pk3", "--bsp:bloodrun.bsp" };
+			//args = new string[] { "46", "E:\\SteamLibrary\\steamapps\\common\\Quake Live\\baseq3\\bloodrun.bsp" };
 
 			/*if (args.Length == 0)
 				args = new string[] { "bloodrun.pk3" };*/
@@ -75,9 +77,7 @@ namespace bspconv {
 
 				if (Extension == ".bsp") {
 					Console.WriteLine("Converting {0}", FileNameExt);
-
-					BSP Map = BSP.FromFile(FileNameExt);
-					Map.Version = TargetVer;
+					BSP Map = ConvertBspMap(BSP.FromFile(FileNameExt), TargetVer);
 
 					File.WriteAllBytes(OutName, Map.ToByteArray());
 				} else if (Extension == ".pk3") {
@@ -127,9 +127,7 @@ namespace bspconv {
 				OpenEntry(Entry, true, (InStream) => {
 					if (EntryExt == ".bsp") {
 						Console.WriteLine("Converting {0}", Entry.FullName);
-
-						BSP Map = BSP.FromStream(InStream);
-						Map.Version = TargetVer;
+						BSP Map = ConvertBspMap(BSP.FromStream(InStream), TargetVer);
 
 						OpenEntry(OutEntry, false, (OutStream) => Map.Serialize(OutStream));
 					} else {
@@ -164,6 +162,24 @@ namespace bspconv {
 					}
 				}
 			}
+		}
+
+		static BSP ConvertBspMap(BSP Map, QuakeVersion TargetVer) {
+			if (TargetVer == QuakeVersion.Quake3) {
+				BSPEntities Ents = new BSPEntities(Map.LumpEntities);
+
+				foreach (BSPEntity E in Ents) {
+					if (E["classname"] == "advertisement") {
+						E["classname"] = "func_static";
+						E.RemoveKey("cellId");
+					}
+				}
+
+				Map.LumpEntities = Ents.ToLump();
+			}
+
+			Map.Version = TargetVer;
+			return Map;
 		}
 	}
 }

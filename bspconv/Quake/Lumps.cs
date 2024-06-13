@@ -155,12 +155,12 @@ namespace bspconv.Quake {
 
 	[StructLayout(LayoutKind.Sequential, Pack = 1)]
 	public unsafe struct BSP_Advertisements {
-		int CellID;          // The cellId key/value pair defined in Radiant
-		Vector3<float> Normal;// Normal vector to the advertisement plane
-		Vector3<float> RectA;// Advertisement plane boundaries
-		Vector3<float> RectB;
-		Vector3<float> RectC;
-		Vector3<float> RectD;
-		fixed byte Model[64];// Advertisement display model
+		public int CellID;          // The cellId key/value pair defined in Radiant
+		public Vector3<float> Normal;// Normal vector to the advertisement plane
+		public Vector3<float> RectA;// Advertisement plane boundaries
+		public Vector3<float> RectB;
+		public Vector3<float> RectC;
+		public Vector3<float> RectD;
+		public fixed byte Model[64];// Advertisement display model
 	}
 }
