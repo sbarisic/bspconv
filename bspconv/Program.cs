@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -209,7 +209,7 @@ namespace bspconv {
 
 
 			foreach (var Entry in In.Entries) {
-				Console.Title = string.Format("{0:0}%", ((float)EntryNum / Count) * 100);
+				Console.Title = string.Format("bspconv {0:0}%", ((float)EntryNum / Count) * 100);
 				EntryNum++;
 
 				string EntryFileNameNoExt = Path.GetFileNameWithoutExtension(Entry.FullName);
