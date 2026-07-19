@@ -71,7 +71,7 @@ namespace bspconv.HL {
 		}
 
 		public bool TryGetValue(string key, out string value) {
-			throw new NotImplementedException();
+			return KeyValues.TryGetValue(key, out value);
 		}
 
 		public void Add(KeyValuePair<string, string> item) {

@@ -85,7 +85,7 @@ namespace bspconv.Quake {
 		public BSP_Visdata LumpVisData;
 
 		[BSPLump("IBSP", QuakeVersion.QuakeLive, 17)]
-		public BSP_Advertisements LumpAdvertisements;
+		public BSP_Advertisements[] LumpAdvertisements = new BSP_Advertisements[0];
 
 
 
@@ -160,16 +160,17 @@ namespace bspconv.Quake {
 		void Deserialize(BinaryReader BR) {
 			Magic = BR.ReadString(Encoding.ASCII, 4);
 			QuakeVersion QVersion = (QuakeVersion)BR.Read<int>();
-			int Version = (int)QVersion;
+			Version = QVersion;
+			int VersionNumber = (int)Version;
 
 			bool Supported = false;
 			Supported |= Magic == "IBSP" && QVersion == QuakeVersion.Quake3;
 			Supported |= Magic == "IBSP" && QVersion == QuakeVersion.QuakeLive;
 
 			if (!Supported)
-				throw new Exception("Unknown format " + Magic + " " + Version);
+				throw new Exception("Unknown format " + Magic + " " + VersionNumber);
 
-			Entries = BR.ReadArray<BSP_DirEntry>(LumpCount[Magic + Version]);
+			Entries = BR.ReadArray<BSP_DirEntry>(LumpCount[Magic + VersionNumber]);
 			DeserializeLumpVisdata(BR, GetVisdataIndex());
 
 			// TODO: Remove
@@ -186,7 +187,7 @@ namespace bspconv.Quake {
 				BSPLumpAttribute[] Attribs = Fields[i].GetCustomAttributes<BSPLumpAttribute>().ToArray();
 
 				for (int j = 0; j < Attribs.Length; j++) {
-					if (Attribs[j].Magic != Magic || Attribs[j].Version != (QuakeVersion)Version)
+					if (Attribs[j].Magic != Magic || Attribs[j].Version != Version)
 						continue;
 
 					int Offset = Entries[Attribs[j].Index].Offset;

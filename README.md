@@ -8,6 +8,26 @@ Currently only Quake 3 (IBSP 46) and Quake Live (IBSP 47) maps are supported.
 Feature requests welcome.
 If you encounter any problems, please open a new issue here.
 
+## Usage
+
+```text
+bspconv [version] file(.bsp|.pk3) [file2(.bsp|.pk3)]+ [--bsp:name]
+```
+
+- `version` is optional and must be `46` (Quake 3) or `47` (Quake Live). The
+  default is `47`.
+- `--bsp:name.bsp` converts only the matching BSP (and retains its matching AAS)
+  when processing PK3 archives.
+- Outputs are written to the current directory as
+  `<input-name>_IBSP<version>.<extension>`.
+- If multiple inputs would produce the same output path, the command stops
+  before writing any output.
+
+The command returns zero when every requested conversion succeeds. Invalid
+arguments and output collisions fail before conversion. Missing, unsupported,
+or invalid individual inputs are reported while other independent inputs are
+processed, and the final exit code is nonzero.
+
 
 ## Quake 3 to Quake Live example
 
