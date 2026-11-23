@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
-using System.Linq.Expressions;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Reflection;
@@ -87,13 +86,9 @@ namespace bspconv.Quake {
 		[BSPLump("IBSP", QuakeVersion.QuakeLive, 17)]
 		public BSP_Advertisements[] LumpAdvertisements = new BSP_Advertisements[0];
 
-
-
-
-
-		static Dictionary<string, int> LumpCount = new Dictionary<string, int>() {
-			{"IBSP46", 17 },
-			{"IBSP47", 18 }
+		static readonly Dictionary<string, int> LumpCounts = new Dictionary<string, int> {
+			{ "IBSP46", 17 },
+			{ "IBSP47", 18 }
 		};
 
 		public static BSP FromFile(string Pth) {
@@ -110,155 +105,108 @@ namespace bspconv.Quake {
 				Deserialize(BR);
 		}
 
-		void DeserializeLumpVisdata(BinaryReader BR, int Idx) {
-			int Len = 0;
+		void DeserializeLumpVisdata(BinaryReader reader, int index) {
+			int length = 0;
 
-			if (Idx != -1) {
-				BR.BaseStream.Seek(Entries[Idx].Offset, SeekOrigin.Begin);
-				Len = Entries[Idx].Length;
+			if (index != -1) {
+				reader.BaseStream.Seek(Entries[index].Offset, SeekOrigin.Begin);
+				length = Entries[index].Length;
 			}
 
-			if (Len == 0) {
+			if (length == 0) {
 				LumpVisData.N_Vecs = 0;
 				LumpVisData.SZ_Vecs = 0;
 				LumpVisData.Vecs = new byte[] { };
 				return;
 			}
 
-			LumpVisData.N_Vecs = BR.ReadInt32();
-			LumpVisData.SZ_Vecs = BR.ReadInt32();
-			LumpVisData.Vecs = BR.ReadArray<byte>(LumpVisData.N_Vecs * LumpVisData.SZ_Vecs);
+			LumpVisData.N_Vecs = reader.ReadInt32();
+			LumpVisData.SZ_Vecs = reader.ReadInt32();
+			LumpVisData.Vecs = reader.ReadArray<byte>(LumpVisData.N_Vecs * LumpVisData.SZ_Vecs);
 		}
 
-		void SerializeLumpVisdata(BinaryWriter BW, int Idx) {
-			int Offset = (int)BW.BaseStream.Position;
-			int Length = 0;
+		void SerializeLumpVisdata(BinaryWriter writer, int index) {
+			int offset = (int)writer.BaseStream.Position;
+			int length = 0;
 
-			if (!(LumpVisData.N_Vecs == 0 && LumpVisData.SZ_Vecs == 0)) {
-				BW.Write(LumpVisData.N_Vecs);
-				BW.Write(LumpVisData.SZ_Vecs);
-				BW.Write(LumpVisData.Vecs);
-				Length = (int)BW.BaseStream.Position - Offset;
+			if (LumpVisData.N_Vecs != 0 || LumpVisData.SZ_Vecs != 0) {
+				writer.Write(LumpVisData.N_Vecs);
+				writer.Write(LumpVisData.SZ_Vecs);
+				writer.Write(LumpVisData.Vecs);
+				length = (int)writer.BaseStream.Position - offset;
 			}
 
-			Entries[Idx].Offset = Offset;
-			Entries[Idx].Length = Length;
+			Entries[index].Offset = offset;
+			Entries[index].Length = length;
 		}
 
 		int GetVisdataIndex() {
-			BSPLumpAttribute[] LumpAttribs =
-							GetType().GetField(nameof(LumpVisData)).GetCustomAttributes<BSPLumpAttribute>().ToArray();
-
-			int VisdataIndex = LumpAttribs.Where(L => L.Version == Version).FirstOrDefault()?.Index ?? -1;
-
-			//if (VisdataIndex == -1)
-			//	throw new NotImplementedException();
-
-			return VisdataIndex;
+			return GetType().GetField(nameof(LumpVisData)).GetCustomAttributes<BSPLumpAttribute>()
+				.FirstOrDefault(lump => lump.Version == Version)?.Index ?? -1;
 		}
 
-		void Deserialize(BinaryReader BR) {
-			Magic = BR.ReadString(Encoding.ASCII, 4);
-			QuakeVersion QVersion = (QuakeVersion)BR.Read<int>();
-			Version = QVersion;
-			int VersionNumber = (int)Version;
+		IEnumerable<BSPLumpAttribute> GetMatchingLumps(FieldInfo field) {
+			return field.GetCustomAttributes<BSPLumpAttribute>()
+				.Where(lump => lump.Magic == Magic && lump.Version == Version);
+		}
 
-			bool Supported = false;
-			Supported |= Magic == "IBSP" && QVersion == QuakeVersion.Quake3;
-			Supported |= Magic == "IBSP" && QVersion == QuakeVersion.QuakeLive;
+		void Deserialize(BinaryReader reader) {
+			Magic = reader.ReadString(Encoding.ASCII, 4);
+			Version = (QuakeVersion)reader.Read<int>();
+			if (!LumpCounts.TryGetValue(Magic + (int)Version, out int lumpCount))
+				throw new Exception("Unknown format " + Magic + " " + (int)Version);
 
-			if (!Supported)
-				throw new Exception("Unknown format " + Magic + " " + VersionNumber);
+			Entries = reader.ReadArray<BSP_DirEntry>(lumpCount);
+			DeserializeLumpVisdata(reader, GetVisdataIndex());
 
-			Entries = BR.ReadArray<BSP_DirEntry>(LumpCount[Magic + VersionNumber]);
-			DeserializeLumpVisdata(BR, GetVisdataIndex());
-
-			// TODO: Remove
-			// File.WriteAllText("DESERIALIZE.txt", string.Join("\n", Entries.Select(E => E.ToString())));
-
-			//int EntryIdx = 0;
-			//LumpOrder = Entries.Select((Entry) => new Tuple<BSP_DirEntry, int>(Entry, EntryIdx++)).OrderBy((I) => I.Item1.Offset).Select((I) => I.Item2).ToArray();
-
-			FieldInfo[] Fields = GetType().GetFields();
-			for (int i = 0; i < Fields.Length; i++) {
-				if (Fields[i].GetCustomAttribute<BSPSkipAutoDeserializeAttribute>() != null)
+			foreach (var field in GetType().GetFields()) {
+				if (field.GetCustomAttribute<BSPSkipAutoDeserializeAttribute>() != null)
 					continue;
 
-				BSPLumpAttribute[] Attribs = Fields[i].GetCustomAttributes<BSPLumpAttribute>().ToArray();
-
-				for (int j = 0; j < Attribs.Length; j++) {
-					if (Attribs[j].Magic != Magic || Attribs[j].Version != Version)
-						continue;
-
-					int Offset = Entries[Attribs[j].Index].Offset;
-					int Length = Entries[Attribs[j].Index].Length;
-					Type T = Fields[i].FieldType;
-
-					Fields[i].SetValue(this, T.IsArray ? BR.ReadArray(T.GetElementType(), Offset, Length) : BR.Read(T, Offset, Length));
+				foreach (var lump in GetMatchingLumps(field)) {
+					var entry = Entries[lump.Index];
+					Type type = field.FieldType;
+					object value = type.IsArray
+						? reader.ReadArray(type.GetElementType(), entry.Offset, entry.Length)
+						: reader.Read(type, entry.Offset, entry.Length);
+					field.SetValue(this, value);
 				}
 			}
 		}
 
-		void SerializeWatermark(BinaryWriter BW) {
-			BW.Write(" Carpmanium was here :-) ", Encoding.ASCII, true);
-		}
-
 		public void Serialize(Stream S) {
-			int Version = (int)this.Version;
+			using (var writer = new BinaryWriter(S, Encoding.UTF8, true)) {
+				writer.Write(Magic, Encoding.ASCII);
+				writer.Write((int)Version);
 
-			using (BinaryWriter BW = new BinaryWriter(S, Encoding.UTF8, true)) {
-				BW.Write(Magic, Encoding.ASCII);
-				BW.Write((int)Version);
+				int lumpCount = LumpCounts[Magic + (int)Version];
+				if (Entries.Length != lumpCount)
+					Array.Resize(ref Entries, lumpCount);
+				Array.Clear(Entries, 0, Entries.Length);
 
-				int LumpCountNum = LumpCount[Magic + Version];
-				if (Entries.Length != LumpCountNum)
-					Array.Resize(ref Entries, LumpCountNum);
-
-				for (int i = 0; i < Entries.Length; i++) {
-					Entries[i].Length = 0;
-					Entries[i].Offset = 0;
-				}
-
-				int EntriesPosition = (int)S.Position;
-				BW.WriteStructArray(Entries);
-				//SerializeWatermark(BW);
-
-				FieldInfo[] Fields = GetType().GetFields();
-
-				for (int i = 0; i < Fields.Length; i++) {
-					if (Fields[i].GetCustomAttribute<BSPSkipAutoSerializeAttribute>() != null)
+				// Reserve the directory now. Each lump's offset and length are known after writing it.
+				long directoryPosition = S.Position;
+				writer.WriteStructArray(Entries);
+				foreach (var field in GetType().GetFields()) {
+					if (field.GetCustomAttribute<BSPSkipAutoSerializeAttribute>() != null)
+						continue;
+					var lump = GetMatchingLumps(field).FirstOrDefault();
+					if (lump == null)
 						continue;
 
-					BSPLumpAttribute[] Attribs = Fields[i].GetCustomAttributes<BSPLumpAttribute>().ToArray();
-
-					for (int j = 0; j < Attribs.Length; j++) {
-						Type T = Fields[i].FieldType;
-
-						if (Attribs[j].Magic == Magic && Attribs[j].Version == (QuakeVersion)Version) {
-							int Offset = (int)S.Position;
-
-							if (T.IsArray)
-								BW.WriteStructArray((Array)Fields[i].GetValue(this));
-							else
-								BW.WriteStruct(Fields[i].GetValue(this));
-
-							Entries[Attribs[j].Index].Offset = Offset;
-							Entries[Attribs[j].Index].Length = (int)S.Position - Offset;
-							//SerializeWatermark(BW);
-							break;
-						}
-						//Fields[i].SetValue(this, T.IsArray ? BR.ReadArray(T.GetElementType(), Offset, Length) : BR.Read(T, Offset, Length));
-					}
+					int offset = (int)S.Position;
+					object value = field.GetValue(this);
+					if (field.FieldType.IsArray)
+						writer.WriteStructArray((Array)value);
+					else
+						writer.WriteStruct(value);
+					Entries[lump.Index].Offset = offset;
+					Entries[lump.Index].Length = (int)S.Position - offset;
 				}
 
-				SerializeLumpVisdata(BW, GetVisdataIndex());
-				//SerializeWatermark(BW);
-
-				S.Seek(EntriesPosition, SeekOrigin.Begin);
-				BW.WriteStructArray(Entries);
-
-				// TODO: Remove
-				// File.WriteAllText("SERIALIZE.txt", string.Join("\n", Entries.Select(E => E.ToString())));
+				SerializeLumpVisdata(writer, GetVisdataIndex());
+				S.Position = directoryPosition;
+				writer.WriteStructArray(Entries);
 			}
 		}
 

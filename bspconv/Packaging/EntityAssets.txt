@@ -1,0 +1,120 @@
+# Stock spawn, item and weapon registration asset paths (g_spawn, bg_misc, cg_weapons).
+# Each row is a classname followed by runtime assets. + marks a Quake Live or expansion entity.
++advertisement
++info_tour_point
++info_firstplace
++info_secondplace
++info_thirdplace
++info_spectator_start
++target_achievement
++target_cvar
++item_key_silver models/powerups/keys/key_silver.md3 icons/key_silver
++item_key_gold models/powerups/keys/key_gold.md3 icons/key_gold
++team_dom_point models/powerups/domination/dompoint.md3 models/powerups/domination/domred.skin models/powerups/domination/domblue.skin models/powerups/domination/domntrl.skin
++ammo_belt sound/misc/am_pkup.wav models/powerups/ammo/chaingunam.md3 icons/icona_chaingun
+ammo_bfg sound/misc/am_pkup.wav models/powerups/ammo/bfgam.md3 icons/icona_bfg
+ammo_bullets sound/misc/am_pkup.wav models/powerups/ammo/machinegunam.md3 icons/icona_machinegun
+ammo_cells sound/misc/am_pkup.wav models/powerups/ammo/plasmaam.md3 icons/icona_plasma
+ammo_grenades sound/misc/am_pkup.wav models/powerups/ammo/grenadeam.md3 icons/icona_grenade
++ammo_hmg models/powerups/ammo/hmgam.md3 icons/ammo_hmg
+ammo_lightning sound/misc/am_pkup.wav models/powerups/ammo/lightningam.md3 icons/icona_lightning
++ammo_mines sound/misc/am_pkup.wav models/powerups/ammo/proxmineam.md3 icons/icona_proxlauncher
++ammo_nails sound/misc/am_pkup.wav models/powerups/ammo/nailgunam.md3 icons/icona_nailgun
++ammo_pack models/powerups/ammo/ammopack.md3 icons/ammo_pack
+ammo_rockets sound/misc/am_pkup.wav models/powerups/ammo/rocketam.md3 icons/icona_rocket
+ammo_shells sound/misc/am_pkup.wav models/powerups/ammo/shotgunam.md3 icons/icona_shotgun
+ammo_slugs sound/misc/am_pkup.wav models/powerups/ammo/railgunam.md3 icons/icona_railgun
+func_bobbing
+func_button sound/movers/switches/butn2.wav
+func_door sound/movers/doors/dr1_strt.wav sound/movers/doors/dr1_end.wav
+func_group
+func_pendulum
+func_plat sound/movers/plats/pt1_strt.wav sound/movers/plats/pt1_end.wav
+func_rotating
+func_static
+func_timer
+func_train
++holdable_invulnerability sound/items/holdable.wav models/powerups/holdable/invulnerability.md3 icons/invulnerability
++holdable_kamikaze sound/items/holdable.wav models/powerups/kamikazi.md3 icons/kamikaze sound/items/kamikazerespawn.wav
+holdable_medkit sound/items/holdable.wav models/powerups/holdable/medkit.md3 models/powerups/holdable/medkit_sphere.md3 icons/medkit sound/items/use_medkit.wav
++holdable_portal sound/items/holdable.wav models/powerups/holdable/porter.md3 icons/portal
+holdable_teleporter sound/items/holdable.wav models/powerups/holdable/teleporter.md3 icons/teleporter
+info_camp
+info_notnull
+info_null
+info_player_deathmatch
+info_player_intermission
+info_player_start
++item_ammoregen sound/items/ammoregen.wav models/powerups/ammo.md3 icons/ammo_regen
+item_armor_body sound/misc/ar2_pkup.wav models/powerups/armor/armor_red.md3 icons/iconr_red
+item_armor_combat sound/misc/ar2_pkup.wav models/powerups/armor/armor_yel.md3 icons/iconr_yellow
++item_armor_jacket models/powerups/armor/armor_grn.md3 icons/iconr_green sound/misc/ar2_pkup.wav
+item_armor_shard sound/misc/ar1_pkup.wav models/powerups/armor/shard.md3 models/powerups/armor/shard_sphere.md3 icons/iconr_shard
++item_bluecube sound/misc/am_pkup.wav models/powerups/orb/b_orb.md3 icons/iconh_borb
+item_botroam
++item_doubler sound/items/doubler.wav models/powerups/doubler.md3 icons/doubler
+item_enviro sound/items/protect.wav models/powerups/instant/enviro.md3 models/powerups/instant/enviro_ring.md3 icons/envirosuit sound/items/airout.wav sound/items/protect3.wav
+item_flight sound/items/flight.wav models/powerups/instant/flight.md3 models/powerups/instant/flight_ring.md3 icons/flight
++item_guard sound/items/guard.wav models/powerups/guard.md3 icons/guard
+item_haste sound/items/haste.wav models/powerups/instant/haste.md3 models/powerups/instant/haste_ring.md3 icons/haste
+item_health sound/items/n_health.wav models/powerups/health/medium_cross.md3 models/powerups/health/medium_sphere.md3 icons/iconh_yellow
+item_health_large sound/items/l_health.wav models/powerups/health/large_cross.md3 models/powerups/health/large_sphere.md3 icons/iconh_red
+item_health_mega sound/items/m_health.wav models/powerups/health/mega_cross.md3 models/powerups/health/mega_sphere.md3 icons/iconh_mega
+item_health_small sound/items/s_health.wav models/powerups/health/small_cross.md3 models/powerups/health/small_sphere.md3 icons/iconh_green
+item_invis sound/items/invisibility.wav models/powerups/instant/invis.md3 models/powerups/instant/invis_ring.md3 icons/invis
+item_quad sound/items/quaddamage.wav models/powerups/instant/quad.md3 models/powerups/instant/quad_ring.md3 icons/quad sound/items/damage2.wav sound/items/damage3.wav
++item_redcube sound/misc/am_pkup.wav models/powerups/orb/r_orb.md3 icons/iconh_rorb
+item_regen sound/items/regeneration.wav models/powerups/instant/regen.md3 models/powerups/instant/regen_ring.md3 icons/regen sound/items/regen.wav
++item_scout sound/items/scout.wav models/powerups/scout.md3 icons/scout
+light
+misc_model
+misc_portal_camera
+misc_portal_surface
+misc_teleporter_dest
+path_corner
+shooter_grenade sound/misc/w_pkup.wav models/weapons2/grenadel/grenadel.md3 icons/iconw_grenade sound/weapons/grenade/hgrenb1a.wav sound/weapons/grenade/hgrenb2a.wav models/ammo/grenade1.md3 sound/weapons/grenade/grenlf1a.wav grenadeExplosion models/powerups/ammo/grenadeam.md3
+shooter_plasma sound/misc/w_pkup.wav models/weapons2/plasma/plasma.md3 icons/iconw_plasma sound/weapons/plasma/lasfly.wav sound/weapons/plasma/hyprbf1a.wav plasmaExplosion railDisc models/powerups/ammo/plasmaam.md3
+shooter_rocket sound/misc/w_pkup.wav models/weapons2/rocketl/rocketl.md3 icons/iconw_rocket models/ammo/rocket/rocket.md3 sound/weapons/rocket/rockfly.wav sound/weapons/rocket/rocklf1a.wav rocketExplosion models/powerups/ammo/rocketam.md3
+target_delay
+target_give
+target_kill
+target_laser
+target_location
+target_position
+target_print
+target_push
+target_relay
+target_remove_powerups
+target_score
+target_speaker
+target_teleporter
+team_CTF_blueflag models/flags/b_flag.md3 icons/iconf_blu1
+team_CTF_blueplayer
+team_CTF_bluespawn
++team_CTF_neutralflag models/flags/n_flag.md3 icons/iconf_neutral1
+team_CTF_redflag models/flags/r_flag.md3 icons/iconf_red1
+team_CTF_redplayer
+team_CTF_redspawn
++team_blueobelisk
++team_neutralobelisk
++team_redobelisk
+trigger_always
+trigger_hurt sound/world/electro.wav
+trigger_multiple
+trigger_push sound/world/jumppad.wav
+trigger_teleport sound/world/jumppad.wav
+weapon_bfg sound/misc/w_pkup.wav models/weapons2/bfg/bfg.md3 icons/iconw_bfg sound/weapons/bfg/bfg_hum.wav sound/weapons/bfg/bfg_fire.wav bfgExplosion models/weaphits/bfg.md3 sound/weapons/rocket/rockfly.wav models/powerups/ammo/bfgam.md3
++weapon_chaingun sound/misc/w_pkup.wav models/weapons/vulcan/vulcan.md3 icons/iconw_chaingun sound/weapons/vulcan/wvulwind.wav sound/weapons/vulcan/wvulfire.wav sound/weapons/vulcan/vulcanf1b.wav sound/weapons/vulcan/vulcanf2b.wav sound/weapons/vulcan/vulcanf3b.wav sound/weapons/vulcan/vulcanf4b.wav bulletExplosion models/powerups/ammo/chaingunam.md3
+weapon_gauntlet sound/misc/w_pkup.wav models/weapons2/gauntlet/gauntlet.md3 icons/iconw_gauntlet sound/weapons/melee/fstrun.wav sound/weapons/melee/fstatck.wav
+weapon_grapplinghook sound/misc/w_pkup.wav models/weapons2/grapple/grapple.md3 icons/iconw_grapple models/ammo/rocket/rocket.md3 sound/weapons/melee/fsthum.wav sound/weapons/melee/fstrun.wav lightningBoltNew
+weapon_grenadelauncher sound/misc/w_pkup.wav models/weapons2/grenadel/grenadel.md3 icons/iconw_grenade sound/weapons/grenade/hgrenb1a.wav sound/weapons/grenade/hgrenb2a.wav models/ammo/grenade1.md3 sound/weapons/grenade/grenlf1a.wav grenadeExplosion models/powerups/ammo/grenadeam.md3
++weapon_hmg models/weapons3/hmg/hmg.md3 icons/weap_hmg models/powerups/ammo/hmgam.md3 sound/weapons/hmg/machgf1b.ogg sound/weapons/hmg/machgf2b.ogg sound/weapons/hmg/machgf3b.ogg sound/weapons/hmg/machgf4b.ogg
+weapon_lightning sound/misc/w_pkup.wav models/weapons2/lightning/lightning.md3 icons/iconw_lightning sound/weapons/melee/fsthum.wav sound/weapons/lightning/lg_hum.wav sound/weapons/lightning/lg_fire.wav lightningBoltNew models/weaphits/crackle.md3 sound/weapons/lightning/lg_hit.wav sound/weapons/lightning/lg_hit2.wav sound/weapons/lightning/lg_hit3.wav models/powerups/ammo/lightningam.md3
+weapon_machinegun sound/misc/w_pkup.wav models/weapons2/machinegun/machinegun.md3 icons/iconw_machinegun sound/weapons/machinegun/machgf1b.wav sound/weapons/machinegun/machgf2b.wav sound/weapons/machinegun/machgf3b.wav sound/weapons/machinegun/machgf4b.wav bulletExplosion models/powerups/ammo/machinegunam.md3
++weapon_nailgun sound/misc/w_pkup.wav models/weapons/nailgun/nailgun.md3 icons/iconw_nailgun sound/weapons/nailgun/wnalflit.wav models/weaphits/nail.md3 sound/weapons/nailgun/wnalfire.wav models/powerups/ammo/nailgunam.md3
+weapon_plasmagun sound/misc/w_pkup.wav models/weapons2/plasma/plasma.md3 icons/iconw_plasma sound/weapons/plasma/lasfly.wav sound/weapons/plasma/hyprbf1a.wav plasmaExplosion railDisc models/powerups/ammo/plasmaam.md3
++weapon_prox_launcher sound/misc/w_pkup.wav models/weapons/proxmine/proxmine.md3 icons/iconw_proxlauncher sound/weapons/proxmine/wstbtick.wav sound/weapons/proxmine/wstbactv.wav sound/weapons/proxmine/wstbimpl.wav sound/weapons/proxmine/wstbimpm.wav sound/weapons/proxmine/wstbimpd.wav models/weaphits/proxmine.md3 sound/weapons/proxmine/wstbfire.wav grenadeExplosion models/powerups/ammo/proxmineam.md3
+weapon_railgun sound/misc/w_pkup.wav models/weapons2/railgun/railgun.md3 icons/iconw_railgun sound/weapons/railgun/rg_hum.wav sound/weapons/railgun/railgf1a.wav railExplosion railDisc railCore models/powerups/ammo/railgunam.md3
+weapon_rocketlauncher sound/misc/w_pkup.wav models/weapons2/rocketl/rocketl.md3 icons/iconw_rocket models/ammo/rocket/rocket.md3 sound/weapons/rocket/rockfly.wav sound/weapons/rocket/rocklf1a.wav rocketExplosion models/powerups/ammo/rocketam.md3
+weapon_shotgun sound/misc/w_pkup.wav models/weapons2/shotgun/shotgun.md3 icons/iconw_shotgun sound/weapons/shotgun/sshotf1b.wav models/powerups/ammo/shotgunam.md3
+worldspawn

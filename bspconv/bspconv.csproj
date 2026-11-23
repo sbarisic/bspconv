@@ -48,8 +48,17 @@
   <ItemGroup>
     <Compile Include="HL\BSPEntities.cs" />
     <Compile Include="Program.cs" />
+    <Compile Include="Packaging\AssetIndex.cs" />
+    <Compile Include="Packaging\MapScripts.cs" />
+    <Compile Include="Packaging\ModelMaterials.cs" />
+    <Compile Include="Packaging\MapPackage.cs" />
+    <EmbeddedResource Include="Packaging\EntityAssets.txt">
+      <LogicalName>bspconv.EntityAssets.txt</LogicalName>
+    </EmbeddedResource>
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Quake\Attributes.cs" />
+    <Compile Include="Quake\Aas.cs" />
+    <Compile Include="Quake\MapChecksum.cs" />
     <Compile Include="Quake\BSP.cs" />
     <Compile Include="Quake\Lumps.cs" />
     <Compile Include="Utils.cs" />

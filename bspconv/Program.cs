@@ -1,15 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using System.Threading;
 using System.IO;
 using System.IO.Compression;
-using System.Collections.ObjectModel;
 using bspconv.Quake;
-using System.Runtime.InteropServices;
-using System.Web.UI;
 using bspconv.HL;
+using bspconv.Packaging;
 
 namespace bspconv {
 	class Program {
@@ -17,276 +14,409 @@ namespace bspconv {
 			public string SourcePath;
 			public string Extension;
 			public string OutputPath;
+			public string AasPath;
+			public string AasOutputPath;
 		}
 
 		static int Main(string[] args) {
 			Console.Title = "bspconv";
-
-			//args = new string[] { "46", "E:\\SteamLibrary\\steamapps\\common\\Quake Live\\baseq3\\pak00.pk3", "--bsp:bloodrun.bsp" };
-			//args = new string[] { "46", "E:\\SteamLibrary\\steamapps\\common\\Quake Live\\baseq3\\bloodrun.bsp" };
-
-			/*if (args.Length == 0)
-				args = new string[] { "bloodrun.pk3" };*/
-
-			QuakeVersion TargetVer = QuakeVersion.QuakeLive;
-			int StartIdx = 0;
 
 			if (args.Length == 0) {
 				PrintUsage();
 				return 0;
 			}
 
-			if (int.TryParse(args[0], out int TargetVerNum)) {
-				if (!IsSupportedVersion(TargetVerNum)) {
-					Console.WriteLine("Unsupported target version {0}. Expected 46 or 47.", TargetVerNum);
-					return 1;
+			var assetRoots = new List<string>();
+			if (!TryParseArguments(args, assetRoots, out string targetBase, out var targetVersion, out var mapFilter, out var inputPaths))
+				return 1;
+
+			bool hadErrors = false;
+			List<ConversionInput> inputs = new List<ConversionInput>();
+
+			foreach (string inputPath in inputPaths) {
+				string extension = Path.GetExtension(inputPath);
+
+				if (!File.Exists(inputPath)) {
+					Console.WriteLine("Could not find {0}", inputPath);
+					hadErrors = true;
+					continue;
 				}
 
-				TargetVer = (QuakeVersion)TargetVerNum;
-				StartIdx = 1;
+				if (!IsSupportedExtension(extension)) {
+					Console.WriteLine("Skipping {0}, unknown extension type {1}", inputPath, extension);
+					hadErrors = true;
+					continue;
+				}
+
+				string baseName = Path.GetFileNameWithoutExtension(inputPath);
+				string outputName = baseName + "_IBSP" + ((int)targetVersion) + extension;
+
+				var input = new ConversionInput() {
+					SourcePath = Path.GetFullPath(inputPath),
+					Extension = extension,
+					OutputPath = Path.GetFullPath(outputName)
+				};
+				try {
+					if (extension.Equals(".bsp", StringComparison.OrdinalIgnoreCase)) {
+						input.AasPath = FindCompanion(input.SourcePath);
+						if (input.AasPath != null)
+							input.AasOutputPath = Path.ChangeExtension(input.OutputPath, ".aas");
+					}
+					inputs.Add(input);
+				} catch (Exception e) {
+					Console.WriteLine("Failed to inspect {0}: {1}", inputPath, e.Message);
+					hadErrors = true;
+				}
 			}
 
-			string BSPName = null;
-			List<string> InputPaths = new List<string>();
+			if (inputs.Any(input => assetRoots.Contains(input.OutputPath, StringComparer.OrdinalIgnoreCase))) {
+				Console.WriteLine("Output would overwrite an explicit asset root.");
+				return 1;
+			}
+			if (inputs.Count == 0 || HasOutputCollisions(inputs))
+				return 1;
 
-			for (int i = StartIdx; i < args.Length; i++) {
+			Console.WriteLine("Converting to IBSP {0} - {1}", (int)targetVersion, targetVersion);
+
+			foreach (ConversionInput input in inputs) {
+				Console.WriteLine("Out file: {0}", input.OutputPath);
+
+				try {
+					ConvertInput(input, targetVersion, mapFilter, assetRoots, targetBase);
+				} catch (Exception e) {
+					Console.WriteLine("Failed to convert {0}: {1}", input.SourcePath, e.Message);
+					hadErrors = true;
+				}
+			}
+
+			return hadErrors ? 1 : 0;
+		}
+
+		static bool TryParseArguments(string[] args, List<string> assetRoots, out string targetBase, out QuakeVersion targetVersion, out string mapFilter,
+			out List<string> inputPaths) {
+			targetBase = null;
+			targetVersion = QuakeVersion.QuakeLive;
+			mapFilter = null;
+			inputPaths = new List<string>();
+			int firstInput = 0;
+			if (int.TryParse(args[0], out int versionNumber)) {
+				if (!IsSupportedVersion(versionNumber)) {
+					Console.WriteLine("Unsupported target version {0}. Expected 46 or 47.", versionNumber);
+					return false;
+				}
+
+				targetVersion = (QuakeVersion)versionNumber;
+				firstInput = 1;
+			}
+
+			for (int i = firstInput; i < args.Length; i++) {
 				if (args[i].StartsWith("--bsp:", StringComparison.OrdinalIgnoreCase)) {
-					BSPName = args[i].Substring(6).Trim();
+					mapFilter = args[i].Substring(6).Trim();
 
-					if (BSPName.Length == 0) {
+					if (mapFilter.Length == 0) {
 						Console.WriteLine("--bsp: switch needs to have bsp name filter (e.g. testmap.bsp)");
-						return 1;
+						return false;
+					}
+				} else if (args[i] == "--asset-root" || args[i] == "--target-base") {
+					string option = args[i];
+					if (++i == args.Length || args[i].StartsWith("--")) {
+						Console.WriteLine("Missing path for {0}", option);
+						return false;
+					}
+					string path = Path.GetFullPath(args[i]);
+					if (option == "--asset-root" && (Directory.Exists(path) ||
+						(File.Exists(path) && path.EndsWith(".pk3", StringComparison.OrdinalIgnoreCase))))
+						assetRoots.Add(path);
+					else if (option == "--target-base" && Directory.Exists(path))
+						targetBase = path;
+					else {
+						Console.WriteLine("Invalid {0} path: {1}", option, path);
+						return false;
 					}
 				} else if (args[i].StartsWith("--")) {
 					Console.WriteLine("Unknown switch {0}", args[i]);
-					return 1;
+					return false;
 				} else {
-					InputPaths.Add(args[i]);
+					inputPaths.Add(args[i]);
 				}
 			}
 
-			if (InputPaths.Count == 0) {
+			if (inputPaths.Count == 0) {
 				Console.WriteLine("At least one .bsp or .pk3 input file is required.");
 				PrintUsage();
-				return 1;
+				return false;
 			}
 
-			bool HadErrors = false;
-			List<ConversionInput> Inputs = new List<ConversionInput>();
-
-			foreach (string FileNameExt in InputPaths) {
-				string Extension = Path.GetExtension(FileNameExt);
-
-				if (!File.Exists(FileNameExt)) {
-					Console.WriteLine("Could not find {0}", FileNameExt);
-					HadErrors = true;
-					continue;
-				}
-
-				if (!IsSupportedExtension(Extension)) {
-					Console.WriteLine("Skipping {0}, unknown extension type {1}", FileNameExt, Extension);
-					HadErrors = true;
-					continue;
-				}
-
-				string FileName = Path.GetFileNameWithoutExtension(FileNameExt);
-				string OutName = FileName + "_IBSP" + ((int)TargetVer) + Extension;
-
-				Inputs.Add(new ConversionInput() {
-					SourcePath = Path.GetFullPath(FileNameExt),
-					Extension = Extension,
-					OutputPath = Path.GetFullPath(OutName)
-				});
-			}
-
-			if (HasOutputCollisions(Inputs))
-				return 1;
-
-			if (Inputs.Count == 0)
-				return 1;
-
-			Console.WriteLine("Converting to IBSP {0} - {1}", (int)TargetVer, TargetVer);
-
-			foreach (ConversionInput Input in Inputs) {
-				Console.WriteLine("Out file: {0}", Input.OutputPath);
-
-				try {
-					ConvertInput(Input, TargetVer, BSPName);
-				} catch (Exception E) {
-					Console.WriteLine("Failed to convert {0}: {1}", Input.SourcePath, E.Message);
-					HadErrors = true;
-				}
-			}
-
-			return HadErrors ? 1 : 0;
+			return true;
 		}
 
 		static void PrintUsage() {
 			Console.WriteLine("bspconv [version] file(.bsp|.pk3) [file2(.bsp|.pk3)]+ [--bsp:name]");
 			Console.WriteLine();
 			Console.WriteLine("\tversion - 46 (Quake 3) or 47 (Quake Live), output version. Input version any.");
-			Console.WriteLine("\t--bsp:bspname.bsp - Convert only bspname.bsp file in the provided .pk3 archive");
+			Console.WriteLine("\t--bsp:bspname.bsp - Convert the named BSP and its companion AAS in each PK3.");
+			Console.WriteLine("\t--asset-root PATH - Additional asset directory or PK3 (repeat in priority order).");
+			Console.WriteLine("\t--target-base DIR - Target game asset directory for fallback lookup.");
+			Console.WriteLine("\tPK3 output includes selected maps and their runtime assets; unresolved assets produce warnings.");
+			Console.WriteLine("\tLoose BSPs also convert a same-name .aas in the input directory.");
 		}
 
-		static bool IsSupportedVersion(int Version) {
-			return Version == (int)QuakeVersion.Quake3 || Version == (int)QuakeVersion.QuakeLive;
+		static bool IsSupportedVersion(int version) {
+			return version == (int)QuakeVersion.Quake3 || version == (int)QuakeVersion.QuakeLive;
 		}
 
-		static bool IsSupportedExtension(string Extension) {
-			return string.Equals(Extension, ".bsp", StringComparison.OrdinalIgnoreCase) ||
-				string.Equals(Extension, ".pk3", StringComparison.OrdinalIgnoreCase);
+		static bool IsSupportedExtension(string extension) {
+			return string.Equals(extension, ".bsp", StringComparison.OrdinalIgnoreCase) ||
+				string.Equals(extension, ".pk3", StringComparison.OrdinalIgnoreCase);
 		}
 
-		static bool HasOutputCollisions(List<ConversionInput> Inputs) {
-			Dictionary<string, List<ConversionInput>> Outputs =
+		static string FindCompanion(string bspPath) {
+			string name = Path.GetFileNameWithoutExtension(bspPath);
+			var siblings = Directory.EnumerateFiles(Path.GetDirectoryName(bspPath))
+				.Where(p => string.Equals(Path.GetFileNameWithoutExtension(p), name, StringComparison.OrdinalIgnoreCase))
+				.ToList();
+			var aas = siblings.Where(p => p.EndsWith(".aas", StringComparison.OrdinalIgnoreCase)).ToList();
+			if (aas.Count == 0)
+				return null;
+			if (aas.Count > 1 || siblings.Count(p => p.EndsWith(".bsp", StringComparison.OrdinalIgnoreCase)) > 1)
+				throw new InvalidDataException("Ambiguous BSP/AAS pairing for " + bspPath);
+			return aas[0];
+		}
+
+		static bool HasOutputCollisions(List<ConversionInput> inputs) {
+			Dictionary<string, List<ConversionInput>> outputs =
 				new Dictionary<string, List<ConversionInput>>(StringComparer.OrdinalIgnoreCase);
 
-			foreach (ConversionInput Input in Inputs) {
-				if (!Outputs.TryGetValue(Input.OutputPath, out List<ConversionInput> Collisions)) {
-					Collisions = new List<ConversionInput>();
-					Outputs.Add(Input.OutputPath, Collisions);
+			foreach (ConversionInput input in inputs) {
+				foreach (string path in new[] { input.OutputPath, input.AasOutputPath }) {
+					if (path == null)
+						continue;
+					if (!outputs.TryGetValue(path, out List<ConversionInput> writers)) {
+						writers = new List<ConversionInput>();
+						outputs.Add(path, writers);
+					}
+					writers.Add(input);
 				}
-
-				Collisions.Add(Input);
 			}
 
-			bool FoundCollision = false;
+			bool foundCollision = false;
+			foreach (var input in inputs) {
+				foreach (var path in new[] { input.SourcePath, input.AasPath }) {
+					if (path != null && outputs.ContainsKey(path)) {
+						Console.WriteLine("Output would overwrite input {0}", path);
+						foundCollision = true;
+					}
+				}
+			}
 
-			foreach (KeyValuePair<string, List<ConversionInput>> Output in Outputs) {
-				if (Output.Value.Count < 2)
+			foreach (KeyValuePair<string, List<ConversionInput>> output in outputs) {
+				if (output.Value.Count < 2)
 					continue;
 
-				FoundCollision = true;
-				Console.WriteLine("Multiple inputs would overwrite {0}:", Output.Key);
+				foundCollision = true;
+				Console.WriteLine("Multiple inputs would overwrite {0}:", output.Key);
 
-				foreach (ConversionInput Input in Output.Value)
-					Console.WriteLine("\t{0}", Input.SourcePath);
+				foreach (ConversionInput input in output.Value)
+					Console.WriteLine("\t{0}", input.SourcePath);
 			}
 
-			return FoundCollision;
+			return foundCollision;
 		}
 
-		static void ConvertInput(ConversionInput Input, QuakeVersion TargetVer, string BSPName) {
-			WriteOutputFile(Input.OutputPath, (TempPath) => {
-				if (string.Equals(Input.Extension, ".bsp", StringComparison.OrdinalIgnoreCase)) {
-					Console.WriteLine("Converting {0}", Input.SourcePath);
-					BSP Map = ConvertBspMap(BSP.FromFile(Input.SourcePath), TargetVer);
-
-					File.WriteAllBytes(TempPath, Map.ToByteArray());
-				} else {
-					OpenZip(Input.SourcePath, true, (In) => {
-						OpenZip(TempPath, false, (Out) => {
-							ConvertFromPK3(TargetVer, In, Out, BSPName);
-						});
-					});
+		static void ConvertInput(ConversionInput input, QuakeVersion targetVersion, string mapFilter, List<string> assetRoots, string targetBase) {
+			if (input.Extension.Equals(".pk3", StringComparison.OrdinalIgnoreCase)) {
+				using (var output = new StagedOutput(input.OutputPath)) {
+					using (var sourceArchive = new ZipArchive(File.OpenRead(input.SourcePath), ZipArchiveMode.Read))
+					using (var archive = new ZipArchive(File.Create(output.TempPath), ZipArchiveMode.Create))
+						ConvertFromPK3(targetVersion, sourceArchive, archive, mapFilter, input, assetRoots, targetBase);
+					output.Publish();
 				}
-			});
+				return;
+			}
+
+			Console.WriteLine("Converting {0}", input.SourcePath);
+			byte[] source = File.ReadAllBytes(input.SourcePath);
+			byte[] converted = ConvertBspBytes(source, targetVersion);
+			using (var bsp = new StagedOutput(input.OutputPath))
+			using (var aas = input.AasPath == null ? null : new StagedOutput(input.AasOutputPath)) {
+				File.WriteAllBytes(bsp.TempPath, converted);
+				if (aas != null) {
+					byte[] navigation = File.ReadAllBytes(input.AasPath);
+					Aas.Convert(navigation, input.AasPath, source, converted, targetVersion);
+					File.WriteAllBytes(aas.TempPath, navigation);
+					Console.WriteLine("Out file: {0}", input.AasOutputPath);
+				}
+				PublishLooseMap(bsp, aas);
+			}
 		}
 
-		static void WriteOutputFile(string OutputPath, Action<string> WriteTempFile) {
-			string OutputDirectory = Path.GetDirectoryName(OutputPath);
-			string TempName = "." + Path.GetFileName(OutputPath) + "." + Guid.NewGuid().ToString("N") + ".tmp";
-			string TempPath = Path.Combine(OutputDirectory, TempName);
+		static byte[] ConvertBspBytes(byte[] source, QuakeVersion target) {
+			using (var stream = new MemoryStream(source, false))
+				return ConvertBspMap(BSP.FromStream(stream), target).ToByteArray();
+		}
 
-			try {
-				WriteTempFile(TempPath);
+		sealed class StagedOutput : IDisposable {
+			public readonly string PathName;
+			public readonly string TempPath;
 
-				if (File.Exists(OutputPath))
-					File.Replace(TempPath, OutputPath, null);
+			public StagedOutput(string path) {
+				PathName = path;
+				TempPath = Path.Combine(Path.GetDirectoryName(path), "." + Path.GetFileName(path) +
+					"." + Guid.NewGuid().ToString("N") + ".tmp");
+			}
+
+			public void Publish(string backup = null) {
+				if (File.Exists(PathName))
+					File.Replace(TempPath, PathName, backup);
 				else
-					File.Move(TempPath, OutputPath);
-			} finally {
-				if (File.Exists(TempPath))
-					File.Delete(TempPath);
+					File.Move(TempPath, PathName);
+			}
+
+			public void Dispose() {
+				File.Delete(TempPath);
 			}
 		}
 
-		static void ConvertFromPK3(QuakeVersion TargetVer, ZipArchive In, ZipArchive Out, string BSPName = null) {
-			int EntryNum = 0;
-			int Count = In.Entries.Count;
-			string BSPNameNoExt = BSPName == null ? null : Path.GetFileNameWithoutExtension(BSPName);
-
-
-
-			foreach (var Entry in In.Entries) {
-				Console.Title = string.Format("bspconv {0:0}%", ((float)EntryNum / Count) * 100);
-				EntryNum++;
-
-				string EntryFileNameNoExt = Path.GetFileNameWithoutExtension(Entry.FullName);
-				string EntryExt = Path.GetExtension(Entry.FullName);
-
-				if (BSPName != null) {
-					if (string.Equals(EntryExt, ".bsp", StringComparison.OrdinalIgnoreCase) &&
-						!string.Equals(EntryFileNameNoExt, BSPNameNoExt, StringComparison.OrdinalIgnoreCase)) {
-						Console.WriteLine("Skipping {0}", Entry.FullName);
-						continue;
-					}
-
-					if (string.Equals(EntryExt, ".aas", StringComparison.OrdinalIgnoreCase) &&
-						!string.Equals(EntryFileNameNoExt, BSPNameNoExt, StringComparison.OrdinalIgnoreCase)) {
-						Console.WriteLine("Skipping {0}", Entry.FullName);
-						continue;
-					}
+		static void PublishLooseMap(StagedOutput bsp, StagedOutput aas) {
+			// Serialize only publication so concurrent conversions cannot interleave a pair or its rollback.
+			using (var mutex = new Mutex(false, "bspconv.LooseMapPublication")) {
+				try {
+					mutex.WaitOne();
+				} catch (AbandonedMutexException) {
+					// Ownership has transferred to this process.
 				}
+				try {
+					if (aas == null) {
+						bsp.Publish();
+						return;
+					}
 
-				ZipArchiveEntry OutEntry = Out.CreateEntry(Entry.FullName, CompressionLevel.Optimal);
+					string backup = bsp.TempPath + ".bak";
+					bsp.Publish(backup);
+					try {
+						aas.Publish();
+					} catch {
+						if (File.Exists(backup))
+							File.Replace(backup, bsp.PathName, null);
+						else
+							File.Delete(bsp.PathName);
+						throw;
+					}
+					File.Delete(backup);
+				} finally {
+					mutex.ReleaseMutex();
+				}
+			}
+		}
 
-				OpenEntry(Entry, true, (InStream) => {
-					if (string.Equals(EntryExt, ".bsp", StringComparison.OrdinalIgnoreCase)) {
-						Console.WriteLine("Converting {0}", Entry.FullName);
-						BSP Map = ConvertBspMap(BSP.FromStream(InStream), TargetVer);
-
-						OpenEntry(OutEntry, false, (OutStream) => Map.Serialize(OutStream));
+		static void ConvertFromPK3(QuakeVersion target, ZipArchive input, ZipArchive output, string bspName,
+			ConversionInput paths, List<string> assetRoots, string targetBase) {
+			string filter = Path.GetFileNameWithoutExtension(bspName);
+			var entries = input.Entries.Where(e => IsMapEntry(e.FullName) && (filter == null ||
+				string.Equals(Path.GetFileNameWithoutExtension(AssetIndex.Normalize(e.FullName)), filter, StringComparison.OrdinalIgnoreCase))).ToList();
+			var maps = entries.Where(e => e.FullName.EndsWith(".bsp", StringComparison.OrdinalIgnoreCase)).ToList();
+			if (maps.Count == 0) {
+				if (filter != null)
+					throw new InvalidDataException("No matching BSP for " + bspName);
+				// Overlay archives (including AAS-only patches) have no map to trace.
+				foreach (var entry in input.Entries)
+					using (var source = entry.Open())
+					using (var dest = output.CreateEntry(entry.FullName, CompressionLevel.Optimal).Open())
+						source.CopyTo(dest);
+				return;
+			}
+			var pairs = FindArchiveCompanions(entries);
+			using (var index = new AssetIndex(paths.OutputPath)) {
+				QuakeVersion sourceVersion;
+				using (var reader = new BinaryReader(maps[0].Open())) {
+					reader.ReadUInt32();
+					sourceVersion = (QuakeVersion)reader.ReadInt32();
+				}
+				index.Load(paths.SourcePath, input, assetRoots, targetBase, sourceVersion, target);
+				var package = new MapPackage(index, output, target);
+				var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+				foreach (var entry in maps) {
+					string name = AssetIndex.Normalize(entry.FullName);
+					if (!AssetIndex.IsVirtualPath(name)) throw new InvalidDataException("Invalid map path " + name);
+					if (!names.Add(name)) throw new InvalidDataException("Ambiguous map path " + name);
+					Console.WriteLine("Converting {0}", name);
+					byte[] source = ReadEntry(entry);
+					var map = ConvertBspMap(BSP.FromStream(new MemoryStream(source, false)), target);
+					byte[] converted = map.ToByteArray();
+					WriteEntry(output, name, converted);
+					byte[] navigation = null;
+					string aasName = Path.ChangeExtension(name, ".aas");
+					if (pairs.TryGetValue(entry, out var companion)) {
+						aasName = AssetIndex.Normalize(companion.FullName);
+						navigation = ReadEntry(companion);
 					} else {
-						Console.WriteLine("Copying {0}", Entry.FullName);
-						OpenEntry(OutEntry, false, (OutStream) => InStream.CopyTo(OutStream));
+						var external = index.Find(aasName);
+						if (external != null) navigation = external.Read();
 					}
-				});
+					if (navigation != null) {
+						Aas.Convert(navigation, aasName, source, converted, target);
+						WriteEntry(output, aasName, navigation);
+					}
+					package.Collect(name, map);
+				}
+				// A stable name avoids shadowing the target game's complete stock shader scripts.
+				string identity = string.Join("\n", names.OrderBy(n => n, StringComparer.OrdinalIgnoreCase)).ToLowerInvariant();
+				package.Finish("bspconv_" + MapChecksum.Compute(System.Text.Encoding.UTF8.GetBytes(identity)).ToString("x8"));
 			}
 		}
 
-		static void OpenZip(string FileName, bool Read, Action<ZipArchive> A) {
-			using (FileStream FS = Read ? File.OpenRead(FileName) : File.Create(FileName)) {
-				using (ZipArchive Arc = new ZipArchive(FS, Read ? ZipArchiveMode.Read : ZipArchiveMode.Create)) {
-					A(Arc);
-				}
+		static Dictionary<ZipArchiveEntry, ZipArchiveEntry> FindArchiveCompanions(List<ZipArchiveEntry> entries) {
+			var pairs = new Dictionary<ZipArchiveEntry, ZipArchiveEntry>();
+			var mapGroups = entries.Where(entry => IsMapEntry(entry.FullName))
+				.GroupBy(entry => Path.ChangeExtension(entry.FullName.Replace('\\', '/'), null), StringComparer.OrdinalIgnoreCase);
+			foreach (var group in mapGroups) {
+				var maps = group.Where(entry => entry.FullName.EndsWith(".bsp", StringComparison.OrdinalIgnoreCase)).ToList();
+				var navigation = group.Where(entry => entry.FullName.EndsWith(".aas", StringComparison.OrdinalIgnoreCase)).ToList();
+				if (maps.Count == 0 || navigation.Count == 0)
+					continue;
+				if (maps.Count != 1 || navigation.Count != 1)
+					throw new InvalidDataException("Ambiguous BSP/AAS pairing for " + group.Key);
+				pairs.Add(maps[0], navigation[0]);
+			}
+
+			return pairs;
+		}
+
+		static bool IsMapEntry(string path) {
+			return path.EndsWith(".bsp", StringComparison.OrdinalIgnoreCase) ||
+				path.EndsWith(".aas", StringComparison.OrdinalIgnoreCase);
+		}
+
+		static byte[] ReadEntry(ZipArchiveEntry entry) {
+			using (var reader = new BinaryReader(entry.Open())) {
+				byte[] data = reader.ReadBytes(checked((int)entry.Length));
+				if (data.Length != entry.Length)
+					throw new EndOfStreamException("Incomplete archive entry " + entry.FullName);
+				return data;
 			}
 		}
 
-		static void OpenEntry(ZipArchiveEntry E, bool Read, Action<Stream> A) {
-			using (MemoryStream BufferStream = new MemoryStream()) {
-				using (Stream ZipStream = E.Open()) {
-					if (Read) {
-						ZipStream.CopyTo(BufferStream);
-						BufferStream.Seek(0, SeekOrigin.Begin);
-					}
-
-					A(BufferStream);
-
-					if (!Read) {
-						BufferStream.Seek(0, SeekOrigin.Begin);
-						BufferStream.CopyTo(ZipStream);
-					}
-				}
-			}
+		static void WriteEntry(ZipArchive output, string name, byte[] data) {
+			using (var stream = output.CreateEntry(name, CompressionLevel.Optimal).Open())
+				stream.Write(data, 0, data.Length);
 		}
 
-		static BSP ConvertBspMap(BSP Map, QuakeVersion TargetVer) {
-			if (TargetVer == QuakeVersion.Quake3) {
-				BSPEntities Ents = new BSPEntities(Map.LumpEntities);
+		static BSP ConvertBspMap(BSP map, QuakeVersion targetVersion) {
+			if (targetVersion == QuakeVersion.Quake3) {
+				BSPEntities entities = new BSPEntities(map.LumpEntities);
 
-				foreach (BSPEntity E in Ents) {
-					if (E.TryGetValue("classname", out string ClassName) && ClassName == "advertisement") {
-						E["classname"] = "func_static";
-						E.RemoveKey("cellId");
+				foreach (BSPEntity entity in entities) {
+					if (entity.TryGetValue("classname", out string className) && className == "advertisement") {
+						entity["classname"] = "func_static";
+						entity.RemoveKey("cellId");
 					}
 				}
 
-				Map.LumpEntities = Ents.ToLump();
+				map.LumpEntities = entities.ToLump();
 			}
 
-			Map.Version = TargetVer;
-			return Map;
+			map.Version = targetVersion;
+			return map;
 		}
 	}
 }
