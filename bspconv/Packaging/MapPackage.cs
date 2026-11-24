@@ -15,6 +15,7 @@ namespace bspconv.Packaging {
 		readonly AssetIndex index;
 		readonly MapScripts scripts;
 		readonly QuakeVersion target;
+		readonly bool qaa;
 		readonly ZipArchive output;
 		readonly HashSet<string> copied = new HashSet<string>(IgnoreCase);
 		readonly HashSet<string> visited = new HashSet<string>(IgnoreCase);
@@ -24,7 +25,8 @@ namespace bspconv.Packaging {
 		readonly Dictionary<string, string[]> entityAssets = new Dictionary<string, string[]>(IgnoreCase);
 		string mapName;
 
-		public MapPackage(AssetIndex index, ZipArchive output, QuakeVersion target) {
+		public MapPackage(AssetIndex index, ZipArchive output, QuakeVersion target, bool qaa = false) {
+			this.qaa = qaa;
 			this.index = index;
 			this.output = output;
 			this.target = target;
@@ -49,7 +51,7 @@ namespace bspconv.Packaging {
 		Asset Resolve(string path, string chain, bool required, params string[] extensions) {
 			var asset = index.Find(path, extensions);
 			if (asset == null && required)
-				Warn(chain + " -> " + path, "missing asset; searched " + index.Locations);
+				Warn(chain + " -> " + path, "missing asset" + index.MissingIdentifier(path) + "; searched " + index.Locations);
 			return asset;
 		}
 
@@ -74,11 +76,23 @@ namespace bspconv.Packaging {
 				Copy(index.Find(Path.ChangeExtension(asset.Name, null) + "_n", Images));
 		}
 
-		void Sound(string path, string chain) {
+		void Sound(string path, string chain, bool music = false) {
 			if (path.StartsWith("*")) return; // player-specific sound
 			var file = Resolve(path, chain, true, Sounds);
 			if (file == null) return;
-			if (Sounds.Contains(Path.GetExtension(file.Name), IgnoreCase)) Copy(file);
+			if (Sounds.Contains(Path.GetExtension(file.Name), IgnoreCase)) {
+				Copy(file);
+				if (music && qaa && target == QuakeVersion.QuakeLive && file.Name.EndsWith(".wav", StringComparison.OrdinalIgnoreCase)) {
+					string ogg = Path.ChangeExtension(file.Name,".ogg");
+					var existing = index.Find(ogg);
+					if (existing != null) Copy(existing);
+					else if (copied.Add(ogg))
+						using (var dest = output.CreateEntry(ogg).Open()) {
+							var encoded = Qaa.QaaMedia.BackgroundTrack(file.Read());
+							dest.Write(encoded,0,encoded.Length);
+						}
+				}
+			}
 			else Warn(chain, "unsupported sound " + file.Name);
 		}
 
@@ -98,7 +112,14 @@ namespace bspconv.Packaging {
 					string video = movie.Contains("/") ? movie : "video/" + movie;
 					if (video.EndsWith(".roq", StringComparison.OrdinalIgnoreCase)) Copy(Resolve(video, dependency, true));
 					else Warn(dependency, "unsupported video " + movie);
-				}, message => Warn(dependency, message), change => Console.WriteLine("{0}: {1} ({2})", mapName, change, name));
+				}, message => Warn(dependency, message), change => Console.WriteLine("{0}: {1} ({2})", mapName, change, name),
+				qaa ? (Func<string,string>)PcImageName : null);
+		}
+
+		string PcImageName(string path) {
+			if (path.StartsWith("$") || path.StartsWith("*") || path == "-") return path;
+			if (path.EndsWith(".dds", StringComparison.OrdinalIgnoreCase)) path = Path.ChangeExtension(path, ".tga");
+			return index.Find(path, Images)?.Name ?? path;
 		}
 
 		void Model(string path, string chain, bool required = true, bool lod = true) {
@@ -149,7 +170,7 @@ namespace bspconv.Packaging {
 					case "skin": case "skin2": Skin(value, chain); break;
 					case "noise": case "sound": case "loopsound": Sound(value, chain); break;
 					case "music":
-						foreach (var track in value.Split((char[])null, StringSplitOptions.RemoveEmptyEntries)) Sound(track, chain);
+						foreach (var track in value.Split((char[])null, StringSplitOptions.RemoveEmptyEntries)) Sound(track, chain, true);
 						break;
 					case "shader": case "targetshadername": case "targetshadernewname": Material(value, chain); break;
 					default:
@@ -184,7 +205,7 @@ namespace bspconv.Packaging {
 			}
 		}
 
-		static unsafe string Name(byte* bytes) {
+		internal static unsafe string Name(byte* bytes) {
 			int length = 0;
 			while (length < 64 && bytes[length] != 0) length++;
 			return Encoding.ASCII.GetString(bytes, length);
@@ -205,7 +226,21 @@ namespace bspconv.Packaging {
 					string model = Name(ad.Model);
 					if (model.Length != 0) Model(model, "advertisement");
 				}
-			foreach (var entity in new BSPEntities(map.LumpEntities)) Entity(entity);
+			var entities = new BSPEntities(map.LumpEntities);
+			bool changedMusic = false;
+			foreach (var entity in entities) {
+				Entity(entity);
+				if (!qaa || target != QuakeVersion.QuakeLive || !entity.TryGetValue("music", out var music)) continue;
+				var tracks = music.Split((char[])null, StringSplitOptions.RemoveEmptyEntries);
+				for (int i = 0; i < tracks.Length; i++) {
+					string ogg = Path.ChangeExtension(tracks[i], ".ogg");
+					if (tracks[i] == ogg || !copied.Contains(ogg)) continue;
+					tracks[i] = ogg;
+					changedMusic = true;
+				}
+				entity["music"] = string.Join(" ", tracks);
+			}
+			if (changedMusic) map.LumpEntities = entities.ToLump();
 			string stem = Path.ChangeExtension(AssetIndex.Normalize(mapPath), null);
 			string name = Path.GetFileName(stem);
 			Image("levelshots/" + name, "levelshot", false);
@@ -218,6 +253,17 @@ namespace bspconv.Packaging {
 		public void Finish(string scriptName) {
 			WriteScript("scripts/" + scriptName + ".shader", materials.OrderBy(m => m.Key.Name, IgnoreCase).Select(m => m.Value));
 			WriteScript("scripts/" + scriptName + ".arena", arenas.OrderBy(a => a.Name, IgnoreCase).Select(a => a.Original));
+		}
+
+		public void ExternalLighting(string mapPath, Qaa.QaaLighting lighting) {
+			var variants = Qaa.QaaShaders.Apply(mapPath, lighting, name => {
+				if (Images.Contains(Path.GetExtension(name), IgnoreCase)) name = Path.ChangeExtension(name, null);
+				if (scripts.Materials.TryGetValue(name, out var block) && materials.TryGetValue(block, out var text)) return text;
+				return null;
+			}, PcImageName, (path, data) => {
+				using (var dest = output.CreateEntry(path, CompressionLevel.Optimal).Open()) dest.Write(data,0,data.Length);
+			});
+			WriteScript("scripts/qaa_" + Qaa.BpkArchive.PathId(mapPath).ToString("x16") + ".shader", variants);
 		}
 
 		void WriteScript(string name, IEnumerable<string> blocks) {

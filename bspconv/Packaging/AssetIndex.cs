@@ -32,6 +32,12 @@ namespace bspconv.Packaging {
 		public IEnumerable<Asset> Files => files.Values;
 		public string Locations => string.Join(", ", roots);
 		readonly string outputPath;
+		Qaa.BpkArchive bpk;
+		bool qaaInput;
+		readonly HashSet<string> checkedBpk = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+		public string MissingIdentifier(string path) {
+			return bpk == null ? "" : " (BPK lookup " + Qaa.BpkArchive.PathId(path).ToString("x16") + ")";
+		}
 
 		public AssetIndex(string outputPath) {
 			this.outputPath = outputPath;
@@ -71,6 +77,10 @@ namespace bspconv.Packaging {
 			var candidates = new[] { name }.Concat(extensions.Select(ext => stem + ext));
 			Asset best = null;
 			foreach (var path in candidates) {
+				if (bpk != null && checkedBpk.Add(path) && (!files.TryGetValue(path,out var current) || current.Priority > 1)) {
+					var found = bpk.Find(path);
+					if (found != null) { found.Priority = 1; files[path] = found; }
+				}
 				if (files.TryGetValue(path, out var file) && (best == null || file.Priority < best.Priority))
 					best = file;
 			}
@@ -96,7 +106,23 @@ namespace bspconv.Packaging {
 				}
 			}
 			foreach (var entry in archive.Entries)
-				Add(entry.FullName, path, entry.Open, visibleScripts);
+				AddGameFile(entry.FullName, path, entry.Open, visibleScripts);
+		}
+
+		void AddGameFile(string path, string origin, Func<Stream> open, HashSet<string> visibleScripts) {
+			string ext = Path.GetExtension(path).ToLowerInvariant();
+			if (!qaaInput || (ext != ".dds" && ext != ".xma" && ext != ".xma2" && ext != ".wav")) {
+				Add(path, origin, open, visibleScripts);
+				return;
+			}
+			string pcPath = Path.ChangeExtension(path, ext == ".dds" ? ".tga" : ".wav");
+			Add(pcPath, origin, () => {
+				using (var input = open())
+				using (var buffer = new MemoryStream()) {
+					input.CopyTo(buffer);
+					return new MemoryStream(Qaa.QaaMedia.Convert(buffer.ToArray()), false);
+				}
+			}, visibleScripts);
 		}
 
 		static IEnumerable<string> LooseFiles(string dir) {
@@ -123,7 +149,7 @@ namespace bspconv.Packaging {
 				return;
 			roots.Add(dir);
 			foreach (string path in LooseFiles(dir))
-				Add(path.Substring(dir.Length + 1), dir, () => File.OpenRead(path), visibleScripts);
+				AddGameFile(path.Substring(dir.Length + 1), dir, () => File.OpenRead(path), visibleScripts);
 		}
 
 		static IEnumerable<string> SteamLibraries(string source) {
@@ -155,8 +181,14 @@ namespace bspconv.Packaging {
 		}
 
 		public void Load(string path, ZipArchive input, IEnumerable<string> overrides, string targetBase,
-			QuakeVersion source, QuakeVersion target) {
-			AddArchive(path, input);
+			QuakeVersion source, QuakeVersion target, bool qaa = false, Qaa.BpkArchive xbox = null) {
+			qaaInput = qaa;
+			bpk = xbox;
+			if (xbox == null) AddArchive(path, input);
+			else {
+				roots.Add(path);
+				foreach (var asset in xbox.Assets) Add(asset.Name,asset.Origin,asset.Open,null);
+			}
 			foreach (string root in overrides) {
 				if (Directory.Exists(root)) AddDirectory(root, false);
 				else AddArchive(root);
@@ -166,7 +198,7 @@ namespace bspconv.Packaging {
 			string siblingBase = Path.Combine(Path.GetDirectoryName(parent) ?? parent, "baseq3");
 			if (Directory.Exists(siblingBase)) AddDirectory(siblingBase, true);
 			var libraries = SteamLibraries(path).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-			string sourceBase = FindGame(libraries, source, path);
+			string sourceBase = qaa ? null : FindGame(libraries, source, path);
 			if (sourceBase != null) AddDirectory(sourceBase, true);
 			if (targetBase != null) AddDirectory(targetBase, true, includeLoose: true);
 			else {

@@ -16,6 +16,7 @@ namespace bspconv {
 			public string OutputPath;
 			public string AasPath;
 			public string AasOutputPath;
+			public bool Qaa;
 		}
 
 		static int Main(string[] args) {
@@ -27,7 +28,7 @@ namespace bspconv {
 			}
 
 			var assetRoots = new List<string>();
-			if (!TryParseArguments(args, assetRoots, out string targetBase, out var targetVersion, out var mapFilter, out var inputPaths))
+			if (!TryParseArguments(args, assetRoots, out string targetBase, out var targetVersion, out var mapFilter, out bool qaa, out var inputPaths))
 				return 1;
 
 			bool hadErrors = false;
@@ -49,11 +50,13 @@ namespace bspconv {
 				}
 
 				string baseName = Path.GetFileNameWithoutExtension(inputPath);
-				string outputName = baseName + "_IBSP" + ((int)targetVersion) + extension;
+				bool bpk = extension.Equals(".bpk", StringComparison.OrdinalIgnoreCase);
+				string outputName = baseName + "_IBSP" + ((int)targetVersion) + (bpk ? ".pk3" : extension);
 
 				var input = new ConversionInput() {
 					SourcePath = Path.GetFullPath(inputPath),
 					Extension = extension,
+					Qaa = bpk || qaa,
 					OutputPath = Path.GetFullPath(outputName)
 				};
 				try {
@@ -93,7 +96,8 @@ namespace bspconv {
 		}
 
 		static bool TryParseArguments(string[] args, List<string> assetRoots, out string targetBase, out QuakeVersion targetVersion, out string mapFilter,
-			out List<string> inputPaths) {
+			out bool qaa, out List<string> inputPaths) {
+			qaa = false;
 			targetBase = null;
 			targetVersion = QuakeVersion.QuakeLive;
 			mapFilter = null;
@@ -117,6 +121,12 @@ namespace bspconv {
 						Console.WriteLine("--bsp: switch needs to have bsp name filter (e.g. testmap.bsp)");
 						return false;
 					}
+				} else if (args[i] == "--source") {
+					if (++i >= args.Length || !args[i].Equals("qaa", StringComparison.OrdinalIgnoreCase)) {
+						Console.WriteLine("--source requires qaa");
+						return false;
+					}
+					qaa = true;
 				} else if (args[i] == "--asset-root" || args[i] == "--target-base") {
 					string option = args[i];
 					if (++i == args.Length || args[i].StartsWith("--")) {
@@ -142,7 +152,7 @@ namespace bspconv {
 			}
 
 			if (inputPaths.Count == 0) {
-				Console.WriteLine("At least one .bsp or .pk3 input file is required.");
+				Console.WriteLine("At least one .bsp, .bpk or .pk3 input file is required.");
 				PrintUsage();
 				return false;
 			}
@@ -151,9 +161,10 @@ namespace bspconv {
 		}
 
 		static void PrintUsage() {
-			Console.WriteLine("bspconv [version] file(.bsp|.pk3) [file2(.bsp|.pk3)]+ [--bsp:name]");
+			Console.WriteLine("bspconv [version] file(.bsp|.pk3|.bpk) [more files] [--source qaa] [--bsp:name]");
 			Console.WriteLine();
 			Console.WriteLine("\tversion - 46 (Quake 3) or 47 (Quake Live), output version. Input version any.");
+			Console.WriteLine("\t--source qaa - Read Xbox 512px lightmaps in BSP and PK3 inputs. A QAA BPK is detected automatically.");
 			Console.WriteLine("\t--bsp:bspname.bsp - Convert the named BSP and its companion AAS in each PK3.");
 			Console.WriteLine("\t--asset-root PATH - Additional asset directory or PK3 (repeat in priority order).");
 			Console.WriteLine("\t--target-base DIR - Target game asset directory for fallback lookup.");
@@ -167,7 +178,8 @@ namespace bspconv {
 
 		static bool IsSupportedExtension(string extension) {
 			return string.Equals(extension, ".bsp", StringComparison.OrdinalIgnoreCase) ||
-				string.Equals(extension, ".pk3", StringComparison.OrdinalIgnoreCase);
+				string.Equals(extension, ".pk3", StringComparison.OrdinalIgnoreCase) ||
+				string.Equals(extension, ".bpk", StringComparison.OrdinalIgnoreCase);
 		}
 
 		static string FindCompanion(string bspPath) {
@@ -224,6 +236,30 @@ namespace bspconv {
 		}
 
 		static void ConvertInput(ConversionInput input, QuakeVersion targetVersion, string mapFilter, List<string> assetRoots, string targetBase) {
+			if (input.Extension.Equals(".bpk", StringComparison.OrdinalIgnoreCase)) {
+				using (var bpk = new Qaa.BpkArchive(input.SourcePath, mapFilter))
+				using (var output = new StagedOutput(input.OutputPath)) {
+					using (var archive = new ZipArchive(File.Create(output.TempPath), ZipArchiveMode.Create))
+					using (var index = new AssetIndex(input.OutputPath)) {
+						index.Load(input.SourcePath, null, assetRoots, targetBase, QuakeVersion.QuakeLive, targetVersion, true, bpk);
+						var package = new MapPackage(index, archive, targetVersion, true);
+						var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+						string filter = Path.GetFileNameWithoutExtension(mapFilter);
+						foreach (var pair in bpk.Maps) {
+							if (filter != null && !filter.Equals(pair.Value, StringComparison.OrdinalIgnoreCase) &&
+								!filter.Equals(Path.GetFileNameWithoutExtension(pair.Key), StringComparison.OrdinalIgnoreCase)) continue;
+							string name = "maps/" + pair.Value + ".bsp";
+							if (!names.Add(name)) throw new InvalidDataException("Duplicate BPK map " + name);
+							byte[] sourceMap = bpk.ReadMap(pair.Key);
+							WriteMap(archive, package, name, sourceMap, bpk.Companion(sourceMap, pair.Key), Path.ChangeExtension(name,".aas"), targetVersion, true);
+						}
+						if (names.Count == 0) throw new InvalidDataException("No recognized BPK map matching " + (filter ?? "*"));
+						FinishPackage(package, names);
+					}
+					output.Publish();
+				}
+				return;
+			}
 			if (input.Extension.Equals(".pk3", StringComparison.OrdinalIgnoreCase)) {
 				using (var output = new StagedOutput(input.OutputPath)) {
 					using (var sourceArchive = new ZipArchive(File.OpenRead(input.SourcePath), ZipArchiveMode.Read))
@@ -236,7 +272,7 @@ namespace bspconv {
 
 			Console.WriteLine("Converting {0}", input.SourcePath);
 			byte[] source = File.ReadAllBytes(input.SourcePath);
-			byte[] converted = ConvertBspBytes(source, targetVersion);
+			byte[] converted = ConvertBspBytes(source, targetVersion, input.Qaa);
 			using (var bsp = new StagedOutput(input.OutputPath))
 			using (var aas = input.AasPath == null ? null : new StagedOutput(input.AasOutputPath)) {
 				File.WriteAllBytes(bsp.TempPath, converted);
@@ -250,7 +286,8 @@ namespace bspconv {
 			}
 		}
 
-		static byte[] ConvertBspBytes(byte[] source, QuakeVersion target) {
+		static byte[] ConvertBspBytes(byte[] source, QuakeVersion target, bool qaa) {
+			if (qaa) return ConvertBspMap(new Qaa.QaaLighting(source).Map, target).ToByteArray();
 			using (var stream = new MemoryStream(source, false))
 				return ConvertBspMap(BSP.FromStream(stream), target).ToByteArray();
 		}
@@ -332,8 +369,8 @@ namespace bspconv {
 					reader.ReadUInt32();
 					sourceVersion = (QuakeVersion)reader.ReadInt32();
 				}
-				index.Load(paths.SourcePath, input, assetRoots, targetBase, sourceVersion, target);
-				var package = new MapPackage(index, output, target);
+				index.Load(paths.SourcePath, input, assetRoots, targetBase, sourceVersion, target, paths.Qaa);
+				var package = new MapPackage(index, output, target, paths.Qaa);
 				var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 				foreach (var entry in maps) {
 					string name = AssetIndex.Normalize(entry.FullName);
@@ -341,9 +378,6 @@ namespace bspconv {
 					if (!names.Add(name)) throw new InvalidDataException("Ambiguous map path " + name);
 					Console.WriteLine("Converting {0}", name);
 					byte[] source = ReadEntry(entry);
-					var map = ConvertBspMap(BSP.FromStream(new MemoryStream(source, false)), target);
-					byte[] converted = map.ToByteArray();
-					WriteEntry(output, name, converted);
 					byte[] navigation = null;
 					string aasName = Path.ChangeExtension(name, ".aas");
 					if (pairs.TryGetValue(entry, out var companion)) {
@@ -353,15 +387,28 @@ namespace bspconv {
 						var external = index.Find(aasName);
 						if (external != null) navigation = external.Read();
 					}
-					if (navigation != null) {
-						Aas.Convert(navigation, aasName, source, converted, target);
-						WriteEntry(output, aasName, navigation);
-					}
-					package.Collect(name, map);
+					WriteMap(output, package, name, source, navigation, aasName, target, paths.Qaa);
 				}
-				// A stable name avoids shadowing the target game's complete stock shader scripts.
-				string identity = string.Join("\n", names.OrderBy(n => n, StringComparer.OrdinalIgnoreCase)).ToLowerInvariant();
-				package.Finish("bspconv_" + MapChecksum.Compute(System.Text.Encoding.UTF8.GetBytes(identity)).ToString("x8"));
+				FinishPackage(package, names);
+			}
+		}
+
+		static void FinishPackage(MapPackage package, IEnumerable<string> names) {
+			string identity = string.Join("\n", names.OrderBy(n => n, StringComparer.OrdinalIgnoreCase)).ToLowerInvariant();
+			package.Finish("bspconv_" + MapChecksum.Compute(System.Text.Encoding.UTF8.GetBytes(identity)).ToString("x8"));
+		}
+
+		static void WriteMap(ZipArchive output, MapPackage package, string name, byte[] source, byte[] navigation,
+			string aasName, QuakeVersion target, bool qaa) {
+			var lighting = qaa ? new Qaa.QaaLighting(source) : null;
+			var map = ConvertBspMap(lighting == null ? BSP.FromStream(new MemoryStream(source, false)) : lighting.Map, target);
+			package.Collect(name, map);
+			if (lighting != null) package.ExternalLighting(name, lighting);
+			byte[] converted = map.ToByteArray();
+			WriteEntry(output, name, converted);
+			if (navigation != null) {
+				Aas.Convert(navigation, aasName, source, converted, target);
+				WriteEntry(output, aasName, navigation);
 			}
 		}
 

@@ -96,13 +96,13 @@ namespace bspconv.Quake {
 				return FromStream(FS);
 		}
 
-		public static BSP FromStream(Stream S) {
-			return new BSP(S);
+		public static BSP FromStream(Stream S, bool skipLightmaps = false) {
+			return new BSP(S, skipLightmaps);
 		}
 
-		BSP(Stream S) {
+		BSP(Stream S, bool skipLightmaps) {
 			using (BinaryReader BR = new BinaryReader(S))
-				Deserialize(BR);
+				Deserialize(BR, skipLightmaps);
 		}
 
 		void DeserializeLumpVisdata(BinaryReader reader, int index) {
@@ -150,7 +150,7 @@ namespace bspconv.Quake {
 				.Where(lump => lump.Magic == Magic && lump.Version == Version);
 		}
 
-		void Deserialize(BinaryReader reader) {
+		void Deserialize(BinaryReader reader, bool skipLightmaps) {
 			Magic = reader.ReadString(Encoding.ASCII, 4);
 			Version = (QuakeVersion)reader.Read<int>();
 			if (!LumpCounts.TryGetValue(Magic + (int)Version, out int lumpCount))
@@ -160,6 +160,7 @@ namespace bspconv.Quake {
 			DeserializeLumpVisdata(reader, GetVisdataIndex());
 
 			foreach (var field in GetType().GetFields()) {
+				if (skipLightmaps && field.Name == nameof(LumpLightmaps)) continue;
 				if (field.GetCustomAttribute<BSPSkipAutoDeserializeAttribute>() != null)
 					continue;
 

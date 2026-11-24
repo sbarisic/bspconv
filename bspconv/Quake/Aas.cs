@@ -16,6 +16,15 @@ namespace bspconv.Quake {
 				data[i] ^= (byte)((i - ChecksumOffset) * 119);
 		}
 
+		internal static uint SourceChecksum(byte[] data) {
+			if (data.Length < HeaderSize || System.BitConverter.ToUInt32(data,0) != Signature)
+				throw new InvalidDataException("Invalid BPK AAS header.");
+			int version = System.BitConverter.ToInt32(data,4);
+			if (version != 4 && version != 5) throw new InvalidDataException("Invalid BPK AAS version.");
+			uint checksum = System.BitConverter.ToUInt32(data,ChecksumOffset);
+			return version == 4 ? checksum : checksum ^ 0x65ee7700U;
+		}
+
 		public static void Convert(byte[] data, string name, byte[] sourceBsp, byte[] outputBsp, QuakeVersion target) {
 			if (data.Length < HeaderSize)
 				throw new InvalidDataException(name + " has a truncated AAS header.");

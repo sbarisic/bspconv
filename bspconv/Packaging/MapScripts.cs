@@ -34,7 +34,7 @@ namespace bspconv.Packaging {
 		public static readonly Encoding TextEncoding = Encoding.GetEncoding(28591);
 		static readonly Regex Lex = new Regex(@"\s+|//[^\r\n]*|/\*[\s\S]*?(?:\*/|$)|""(?:\\.|[^""\\])*""|[{}]|[^\s{}""]+", RegexOptions.Compiled);
 
-		static List<ScriptToken> Tokens(string text) {
+		internal static List<ScriptToken> Tokens(string text) {
 			var result = new List<ScriptToken>();
 			int line = 1;
 			foreach (Match match in Lex.Matches(text)) {
@@ -134,9 +134,14 @@ namespace bspconv.Packaging {
 		}
 
 		public static string MaterialText(ScriptBlock block, QuakeVersion target, Action<string> image,
-			Action<string> video, Action<string> warn, Action<string> adjustment) {
+			Action<string> video, Action<string> warn, Action<string> adjustment, Func<string,string> imageName = null) {
 			var output = new StringBuilder(block.Original);
-			var removed = new List<ScriptToken>();
+			var edits = new Dictionary<ScriptToken,string>();
+			Action<ScriptToken> visitImage = token => {
+				string path = imageName == null ? token.Value : imageName(token.Value);
+				if (path != token.Value) edits[token] = token.Quoted ? "\"" + path + "\"" : path;
+				image(path);
+			};
 			var body = block.Body;
 			int depth = 0;
 			for (int i = 0; i < body.Count;) {
@@ -146,7 +151,7 @@ namespace bspconv.Packaging {
 				string cmd = token.Value.ToLowerInvariant();
 				if (depth == 0 && !token.Quoted && cmd == "novlcollapse") {
 					if (target == QuakeVersion.Quake3) {
-						removed.Add(token);
+						edits[token] = "";
 						adjustment("removed novlcollapse for ioquake3");
 					}
 					continue;
@@ -156,14 +161,14 @@ namespace bspconv.Packaging {
 				if (depth == 1 && (cmd == "map" || cmd == "clampmap" || cmd == "videomap" || cmd == "alphamap")) {
 					if (cmd == "alphamap" && target == QuakeVersion.Quake3) warn("unsupported stage directive alphamap");
 					if (i < end) {
-						string asset = body[i++].Value;
-						if (cmd == "videomap") video(asset); else image(asset);
+						var asset = body[i++];
+						if (cmd == "videomap") video(asset.Value); else visitImage(asset);
 					} else warn("missing asset for " + cmd);
 					continue;
 				}
 				if (depth == 1 && (cmd == "animmap" || cmd == "clampanimmap")) {
 					if (cmd == "clampanimmap" && target == QuakeVersion.Quake3) warn("unsupported stage directive clampanimmap");
-					for (int frame = i + 1; frame < end; frame++) image(body[frame].Value);
+					for (int frame = i + 1; frame < end; frame++) visitImage(body[frame]);
 				} else if (depth == 0 && (cmd == "implicitmap" || cmd == "implicitmask" || cmd == "implicitblend")) {
 					if (i < end) image(body[i].Value == "-" ? block.Name : body[i].Value);
 					warn("unrecognized shader directive " + cmd + " (preserved)");
@@ -180,8 +185,8 @@ namespace bspconv.Packaging {
 				}
 				i = AfterArguments(cmd, body, i, end);
 			}
-			for (int i = removed.Count - 1; i >= 0; i--)
-				output.Remove(removed[i].Start - block.Start, removed[i].End - removed[i].Start);
+			foreach (var edit in edits.OrderByDescending(e => e.Key.Start))
+				output.Remove(edit.Key.Start - block.Start, edit.Key.End - edit.Key.Start).Insert(edit.Key.Start - block.Start, edit.Value);
 			return output.ToString();
 		}
 	}

@@ -1,22 +1,22 @@
 # bspconv
 Quake bsp map converter tool
-The release is a pure .NET Framework 4.6 executable file, so it should work on other operating systems other than windows if you have a .NET runtime
+The converter targets .NET Framework 4.6. Keep the bundled `qaa` directory beside the executable for Xbox archive and audio decoding.
 
 ![image](https://github.com/sbarisic/bspconv/assets/3836060/33afac9d-9318-4145-b8ff-1ed2d8343d92)
 
-Currently only Quake 3 (IBSP 46) and Quake Live (IBSP 47) maps are supported.
+Inputs include Quake III (IBSP 46), Quake Live (IBSP 47), and Quake Arena Arcade for Xbox 360 (IBSP 47). Output targets are Quake III and Quake Live.
 Feature requests welcome.
 If you encounter any problems, please open a new issue here.
 
 ## Usage
 
 ```text
-bspconv [46|47] input.bsp|input.pk3 [more inputs] [--bsp:name] [--asset-root PATH] [--target-base DIR]
+bspconv [46|47] input.bsp|input.pk3|input.bpk [more inputs] [--source qaa] [--bsp:name] [--asset-root PATH] [--target-base DIR]
 ```
 
 - `version` is optional and must be `46` (Quake 3) or `47` (Quake Live). The
   default is `47`.
-- `--bsp:name.bsp` selects that map and its bot navigation in a PK3.
+- `--bsp:name.bsp` selects that map and its bot navigation in a PK3 or BPK.
   The converter matches BSP and AAS entries by directory and basename,
   ignoring case. The output contains the selected maps and their runtime dependencies.
   Omit the filter to package all maps in the input together.
@@ -65,6 +65,27 @@ best-effort package. Review the map and reference chain in the warning to
 find any additional asset root. Custom game logic can request further assets
 at runtime. The converter preserves unsupported entities without substituting
 weapons or changing the rules of the map.
+
+## Quake Arena Arcade (Xbox 360)
+
+Unzip the Xbox trial, then extract `baseq3/pak0.bpk` from the outer STFS container. Point bspconv at the BPK to package maps directly. The name filter accepts the original Xbox map name or its PC alias. For example, Catalyst is `qaadm18` on Xbox.
+
+```text
+bspconv 46 pak0.bpk --bsp:catalyst.bsp
+bspconv 47 pak0.bpk
+bspconv 46 --source qaa catalyst.bsp
+bspconv 47 --source qaa extracted-maps.pk3
+```
+
+The first command writes `pak0_IBSP46.pk3` containing `maps/catalyst.bsp`, its bot navigation and runtime assets. Omitting the filter converts every recognized map into one PK3. Several classic arenas use the stock PC map names, so use a separate game directory when installing the full pack. The loose-file command writes a BSP and converts a same-name AAS when present. Use `--source qaa` for extracted BSPs and repacked PK3s because both Quake Live and QAA use version 47.
+
+Loose output averages each Xbox 512×512 RGB lightmap into one embedded 128×128 page. PK3 output also contains original-resolution TGA pages and draw shaders for the surfaces that use them. The `lm_` images preserve the original RGB values. The `lit_` images account for PC renderers' different brightness treatment of external images. The generated shaders use explicit lightmap coordinates. Renderer debug modes that count only engine-managed lightmaps can display these external stages differently.
+
+For a full-detail comparison, use `r_picmip 0` and restart the renderer. Quake Live can log `mixed allowPicmip parm` when two original materials request different texture-quality settings for a shared external page.
+
+BPK lookup uses the archive's 64-bit path identifiers. DDS images are converted to TGA, XMA2 audio to PCM WAV, and Quake Live background tracks also get an Ogg companion. Unknown dependencies are reported with their lookup identifiers. Use `--asset-root` to supply additional named files. The converter pairs BPK navigation by BSP checksum and writes the checksum of the final PC map.
+
+Windows x86/x64 and Linux x86-64 codec binaries, their corresponding sources, and build instructions are in the `qaa` directory of the build output. After a Release build, run `python tools/package-release.py bin/bspconv-qaa.zip` to assemble the converter and codecs. The Xbox game data is supplied by the user.
 
 ## Bot navigation
 
